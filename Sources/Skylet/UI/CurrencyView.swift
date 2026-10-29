@@ -177,7 +177,7 @@ public struct CurrencyView: View {
                         .help("Swap source and target currencies")
                     }
 
-                    // Exchange rate line and honest update timestamp
+                    // Exchange rate line, provider timestamp and live refresh button
                     HStack(spacing: 6) {
                         Text(CurrencyFormatter.formatRate(from: result.sourceCurrency, to: result.targetCurrency, rate: result.rate))
                             .font(SkyletTheme.captionFont)
@@ -189,7 +189,7 @@ public struct CurrencyView: View {
                             .foregroundStyle(SkyletTheme.tertiaryText)
 
                         if result.isStale {
-                            Text("Offline · Cached rate (\(result.rateDateString))")
+                            Text("Offline · Cached (\(result.rateDateString))")
                                 .font(SkyletTheme.captionFont)
                                 .foregroundStyle(Color.orange)
                         } else {
@@ -197,6 +197,18 @@ public struct CurrencyView: View {
                                 .font(SkyletTheme.captionFont)
                                 .foregroundStyle(SkyletTheme.tertiaryText)
                         }
+
+                        Button {
+                            if let amt = detectedAmount {
+                                executeConversion(amount: amt, source: selectedCurrency, forceRefresh: true)
+                            }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(SkyletTheme.skyBlue)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Fetch live exchange rate from network")
                     }
                 }
                 .padding(.top, 2)
@@ -321,7 +333,7 @@ public struct CurrencyView: View {
         }
     }
 
-    private func executeConversion(amount: Decimal, source: CurrencyCode) {
+    private func executeConversion(amount: Decimal, source: CurrencyCode, forceRefresh: Bool = false) {
         isLoading = true
         errorMessage = nil
 
@@ -330,10 +342,16 @@ public struct CurrencyView: View {
 
         Task {
             do {
-                let result = try await droplet.rateService.convert(amount: amount, from: fromCode, to: toCode)
+                let result = try await droplet.rateService.convert(
+                    amount: amount,
+                    from: fromCode,
+                    to: toCode,
+                    forceRefresh: forceRefresh
+                )
                 await MainActor.run {
                     self.conversionResult = result
                     self.isLoading = false
+                    self.droplet.updateLatestConversion(result)
                 }
             } catch {
                 await MainActor.run {

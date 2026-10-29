@@ -144,7 +144,7 @@ func runAllTests() async {
     let service = CurrencyRateService(
         primaryProvider: mockProvider,
         fallbackProvider: nil,
-        cache: CurrencyRateCache(ttl: 3600)
+        cache: CurrencyRateCache(ttl: 3600, persistToDisk: false)
     )
 
     // INR-to-INR identity

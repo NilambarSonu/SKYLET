@@ -14,9 +14,9 @@ public actor CurrencyRateCache {
     private var entries: [String: CurrencyRateEntry]
     private let fileURL: URL?
 
-    public init(ttl: TimeInterval = 12 * 3600) {
+    public init(ttl: TimeInterval = 12 * 3600, persistToDisk: Bool = true) {
         self.ttl = ttl
-        if let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+        if persistToDisk, let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
             let skyletDir = cacheDir.appendingPathComponent("Skylet", isDirectory: true)
             try? FileManager.default.createDirectory(at: skyletDir, withIntermediateDirectories: true)
             let url = skyletDir.appendingPathComponent("rates_cache.json")
@@ -36,12 +36,25 @@ public actor CurrencyRateCache {
         let key = cacheKey(from: from, to: to)
         guard let entry = entries[key] else { return nil }
 
+        // Sanitize: purge any mock test data
+        if entry.providerName.lowercased() == "mock" || entry.providerDateString.lowercased() == "mockdate" {
+            entries.removeValue(forKey: key)
+            saveToDisk()
+            return nil
+        }
+
         let age = Date().timeIntervalSince(entry.timestamp)
         let isStale = age > ttl
         return (entry, isStale)
     }
 
     public func set(_ entry: CurrencyRateEntry) {
+        // Refuse to persist synthetic mock test data to real cache
+        if entry.providerName.lowercased() == "mock" || entry.providerDateString.lowercased() == "mockdate" {
+            let key = cacheKey(from: entry.from, to: entry.to)
+            entries[key] = entry
+            return
+        }
         let key = cacheKey(from: entry.from, to: entry.to)
         entries[key] = entry
         saveToDisk()
@@ -59,7 +72,11 @@ public actor CurrencyRateCache {
               let decoded = try? JSONDecoder().decode([String: CurrencyRateEntry].self, from: data) else {
             return [:]
         }
-        return decoded
+        // Filter out any mock test entries
+        return decoded.filter { _, entry in
+            entry.providerName.lowercased() != "mock" &&
+            entry.providerDateString.lowercased() != "mockdate"
+        }
     }
 
     private func saveToDisk() {

@@ -23,6 +23,7 @@ public final class SkyletDroplet: NSObject, ObservableObject, Droplet {
     public let rateService: CurrencyRateService
 
     @Published public var selectedMode: SkyletMode = .currency
+    @Published public private(set) var latestConversion: CurrencyConversionResult?
 
     public override init() {
         self.timerEngine = FocusTimerEngine()
@@ -38,9 +39,9 @@ public final class SkyletDroplet: NSObject, ObservableObject, Droplet {
 
         // Observe Focus Timer state to publish Live Activity updates
         timerEngine.$status
-            .sink { [weak self] status in
+            .sink { [weak self] _ in
                 guard let self = self else { return }
-                self.handleTimerStatusChange(status)
+                self.publishAppropriateLiveActivity()
             }
             .store(in: &cancellables)
     }
@@ -49,12 +50,18 @@ public final class SkyletDroplet: NSObject, ObservableObject, Droplet {
         // Full teardown: stop timer, release power assertions, clear live activity, release host.
         timerEngine.deactivate()
         cancellables.removeAll()
+        latestConversion = nil
         activitySubject.send(nil)
         host = nil
     }
 
-    private func handleTimerStatusChange(_ status: FocusTimerStatus) {
-        switch status {
+    public func updateLatestConversion(_ result: CurrencyConversionResult) {
+        self.latestConversion = result
+        publishAppropriateLiveActivity()
+    }
+
+    private func publishAppropriateLiveActivity() {
+        switch timerEngine.status {
         case .running(_, let remaining, _):
             let formatted = FocusTimerEngine.formatCountdown(remaining)
             activitySubject.send(
@@ -74,7 +81,18 @@ public final class SkyletDroplet: NSObject, ObservableObject, Droplet {
                 )
             )
         case .idle, .completed:
-            activitySubject.send(nil)
+            if let conv = latestConversion {
+                let formattedTarget = CurrencyFormatter.format(amount: conv.targetAmount, currency: conv.targetCurrency)
+                activitySubject.send(
+                    LiveActivityState(
+                        priority: 150,
+                        accessibilityTitle: "Skylet conversion: \(conv.sourceAmount) \(conv.sourceCurrency.rawValue) = \(formattedTarget)",
+                        isInteractive: false
+                    )
+                )
+            } else {
+                activitySubject.send(nil)
+            }
         @unknown default:
             activitySubject.send(nil)
         }
@@ -118,19 +136,50 @@ extension SkyletDroplet: LiveActivityProviding {
     public func makeCompactLeading() -> AnyView {
         AnyView(
             HStack(spacing: 3) {
-                Image(systemName: timerEngine.isDisplayAwake ? "sun.max.fill" : "timer")
-                    .font(.system(size: DroppyLiveActivityMetrics.iconSize, weight: .semibold))
-                    .foregroundStyle(SkyletTheme.skyBlue)
+                switch timerEngine.status {
+                case .running, .paused:
+                    Image(systemName: timerEngine.isDisplayAwake ? "sun.max.fill" : "timer")
+                        .font(.system(size: DroppyLiveActivityMetrics.iconSize, weight: .semibold))
+                        .foregroundStyle(SkyletTheme.skyBlue)
+                case .idle, .completed:
+                    if latestConversion != nil {
+                        Image(systemName: "indianrupeesign.circle.fill")
+                            .font(.system(size: DroppyLiveActivityMetrics.iconSize, weight: .semibold))
+                            .foregroundStyle(SkyletTheme.skyBlue)
+                    } else {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: DroppyLiveActivityMetrics.iconSize, weight: .semibold))
+                            .foregroundStyle(SkyletTheme.skyBlue)
+                    }
+                @unknown default:
+                    EmptyView()
+                }
             }
         )
     }
 
     public func makeCompactTrailing() -> AnyView {
         AnyView(
-            Text(currentCountdownText)
-                .font(.system(size: DroppyLiveActivityMetrics.labelFontSize, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(AdaptiveColors.notchSurfacePrimaryText)
+            Group {
+                switch timerEngine.status {
+                case .running, .paused:
+                    Text(currentCountdownText)
+                        .font(.system(size: DroppyLiveActivityMetrics.labelFontSize, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(AdaptiveColors.notchSurfacePrimaryText)
+                case .idle, .completed:
+                    if let conv = latestConversion {
+                        Text(CurrencyFormatter.format(amount: conv.targetAmount, currency: conv.targetCurrency))
+                            .font(.system(size: DroppyLiveActivityMetrics.labelFontSize, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(AdaptiveColors.notchSurfacePrimaryText)
+                    } else {
+                        EmptyView()
+                    }
+                @unknown default:
+                    EmptyView()
+                }
+            }
         )
     }
 
