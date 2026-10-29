@@ -75,6 +75,8 @@ public final class SkyletDroplet: NSObject, ObservableObject, Droplet {
             )
         case .idle, .completed:
             activitySubject.send(nil)
+        @unknown default:
+            activitySubject.send(nil)
         }
     }
 }
@@ -101,7 +103,7 @@ extension SkyletDroplet: ShelfWidgetProviding {
         ]
     }
 
-    public func makeShelfWidget(context: ShelfWidgetContext) -> AnyView {
+    public func makeWidgetView(_ id: ShelfWidgetID, context: ShelfWidgetContext) -> AnyView {
         AnyView(SkyletRootView(droplet: self, context: context))
     }
 }

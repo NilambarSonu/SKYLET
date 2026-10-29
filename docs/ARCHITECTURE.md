@@ -62,3 +62,4 @@ Skylet is engineered as a native macOS utility designed to run inside **Droppy**
 ### 3. `SkyletHarness` & `SkyletTestsRunner`
 - **`SkyletHarness`**: Embedded harness target running Droppy's real settings chrome for local testing and headless screenshot automation.
 - **`SkyletTestsRunner`**: Lightweight executable test harness validating all 65 core unit tests locally.
+

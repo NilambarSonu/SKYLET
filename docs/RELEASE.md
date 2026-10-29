@@ -66,3 +66,4 @@ cp -R .build/Skylet.droplet \
 To remove Skylet:
 1. Open **Droppy Settings** ➔ **Installed Droplets**.
 2. Find **Skylet** and click **Uninstall** or remove the folder from `~/Library/Application Support/Droppy/Droplets/skylet/`.
+

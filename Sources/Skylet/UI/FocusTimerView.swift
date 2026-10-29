@@ -270,6 +270,9 @@ public struct FocusTimerView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
+
+        @unknown default:
+            EmptyView()
         }
     }
 
@@ -284,6 +287,8 @@ public struct FocusTimerView: View {
             return FocusTimerEngine.formatCountdown(remaining)
         case .completed:
             return "00:00"
+        @unknown default:
+            return "00:00"
         }
     }
 
@@ -292,6 +297,7 @@ public struct FocusTimerView: View {
         case .idle: return 0.0
         case .running(_, _, let progress), .paused(_, _, let progress): return progress
         case .completed: return 1.0
+        @unknown default: return 0.0
         }
     }
 

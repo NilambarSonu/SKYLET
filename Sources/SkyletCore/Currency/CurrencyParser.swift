@@ -6,6 +6,7 @@
 import Foundation
 
 /// The outcome of parsing freeform user text or clipboard contents for currency values.
+@frozen
 public enum ParseOutcome: Equatable, Sendable {
     case empty
     case invalidAmount(String)

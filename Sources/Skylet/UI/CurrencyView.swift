@@ -315,6 +315,9 @@ public struct CurrencyView: View {
                 self.ambiguousCandidates = CurrencyRegistry.popularCurrencies
                 errorMessage = "Unrecognized currency code: \(token)"
             }
+
+        @unknown default:
+            break
         }
     }
 

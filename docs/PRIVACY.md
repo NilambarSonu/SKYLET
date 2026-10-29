@@ -24,3 +24,4 @@
 ## 5. Storage & Caching
 - Exchange rates are cached locally in standard temporary storage (`~/Library/Caches/Skylet/rates_cache.json`) to minimize network bandwidth and provide offline resilience.
 - The cache stores only public currency exchange rates and timestamps, never personal information or transaction history.
+

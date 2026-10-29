@@ -17,3 +17,4 @@ This document provides transparent engineering documentation regarding platform 
 
 ## 4. Unsupported Currencies
 - Unofficial, defunct, or unlisted currencies not included in ISO 4217 or unsupported by the public API cannot be converted. In such cases, Skylet indicates that the currency pair is unsupported and offers fallback options.
+

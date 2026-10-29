@@ -6,6 +6,7 @@
 import Foundation
 import Combine
 
+@frozen
 public enum FocusPreset: Int, CaseIterable, Identifiable, Sendable {
     case fifteen = 15
     case thirty = 30
@@ -24,6 +25,7 @@ public enum FocusPreset: Int, CaseIterable, Identifiable, Sendable {
     }
 }
 
+@frozen
 public enum FocusTimerStatus: Equatable, Sendable {
     case idle
     case running(totalDuration: TimeInterval, remaining: TimeInterval, progress: Double)

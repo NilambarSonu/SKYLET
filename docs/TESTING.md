@@ -73,3 +73,4 @@ Run DroppyKit's official validator against the manifest and droplet structure:
 ```bash
 /path/to/droppykit/Scripts/droppykit validate --no-submission
 ```
+
