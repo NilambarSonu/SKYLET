@@ -39,6 +39,7 @@ jobs:
           txt = txt.replace(".defaultIsolation(MainActor.self)", "")
           p.write_text(txt)
           ' "${RUNNER_TEMP}/droppykit/Package.swift"
+          sed -i '' 's/>\/dev\/null//g' "${RUNNER_TEMP}/droppykit/Scripts/build-droplet.sh"
           echo "${RUNNER_TEMP}/droppykit/Scripts" >> $GITHUB_PATH
           echo "DROPPYKIT_PATH=${RUNNER_TEMP}/droppykit" >> $GITHUB_ENV
 
