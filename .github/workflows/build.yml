@@ -74,7 +74,7 @@ jobs:
 
       - name: Build Shipping Droplet Bundle
         run: |
-          droppykit build --arch arm64
+          droppykit build --arch universal
 
       - name: Validate Built Droplet Bundle
         run: |
@@ -83,7 +83,7 @@ jobs:
       - name: Run Headless Harness Screenshots and Report
         run: |
           mkdir -p shots
-          swift run SkyletHarness -- --shots ./shots --report ./shots/report.json || true
+          droppykit run SkyletHarness -- --shots ./shots --report ./shots/report.json || true
 
       - name: Package Release Bundle & Generate Checksum
         run: |
