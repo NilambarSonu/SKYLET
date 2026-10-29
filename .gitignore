@@ -5,6 +5,7 @@
 DerivedData/
 shots/
 .release/
+.release_latest/
 .mcp.json
 .cursor/
 
