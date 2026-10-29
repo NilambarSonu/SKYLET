@@ -32,7 +32,13 @@ jobs:
       - name: Clone Official DroppyKit SDK
         run: |
           git clone --depth 1 https://gitlab.com/droppyformac1/droppykit.git "${RUNNER_TEMP}/droppykit"
-          sed -i '' 's/swift-tools-version: 6.2/swift-tools-version: 6.0/' "${RUNNER_TEMP}/droppykit/Package.swift"
+          python3 -c '
+          import pathlib, sys
+          p = pathlib.Path(sys.argv[1])
+          txt = p.read_text().replace("swift-tools-version: 6.2", "swift-tools-version: 6.0")
+          txt = txt.replace(".defaultIsolation(MainActor.self)", "")
+          p.write_text(txt)
+          ' "${RUNNER_TEMP}/droppykit/Package.swift"
           echo "${RUNNER_TEMP}/droppykit/Scripts" >> $GITHUB_PATH
           echo "DROPPYKIT_PATH=${RUNNER_TEMP}/droppykit" >> $GITHUB_ENV
 
