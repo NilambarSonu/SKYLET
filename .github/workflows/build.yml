@@ -1,0 +1,78 @@
+name: Build, Test & Validate Skylet Droplet
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-validate:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Skylet Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Toolchain
+        run: |
+          if [ -d "/Applications/Xcode_16.0.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app
+          elif [ -d "/Applications/Xcode_15.4.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app
+          fi
+          xcodebuild -version
+          swift --version
+
+      - name: Clone Official DroppyKit SDK
+        run: |
+          git clone --depth 1 https://gitlab.com/droppyformac1/droppykit.git "${RUNNER_TEMP}/droppykit"
+          echo "${RUNNER_TEMP}/droppykit/Scripts" >> $GITHUB_PATH
+
+      - name: Verify DroppyKit Version
+        run: |
+          droppykit version
+
+      - name: Run Skylet Unit Test Suite
+        run: |
+          swift run SkyletTestsRunner
+
+      - name: Build Shipping Droplet Bundle
+        run: |
+          droppykit build --arch arm64
+
+      - name: Validate Built Droplet Bundle
+        run: |
+          droppykit validate --no-submission
+
+      - name: Run Headless Harness Screenshots and Report
+        run: |
+          mkdir -p shots
+          swift run SkyletHarness -- --shots ./shots --report ./shots/report.json || true
+
+      - name: Package Release Bundle & Generate Checksum
+        run: |
+          cd .build
+          zip -r -9 Skylet.droplet.zip Skylet.droplet
+          shasum -a 256 Skylet.droplet.zip > Skylet.droplet.zip.sha256
+          cat Skylet.droplet.zip.sha256
+          echo "SHA256=$(cat Skylet.droplet.zip.sha256 | awk '{print $1}')" >> $GITHUB_ENV
+
+      - name: Upload Release Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Skylet.droplet
+          path: |
+            .build/Skylet.droplet.zip
+            .build/Skylet.droplet.zip.sha256
+
+      - name: Upload Harness Screenshots and Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: harness-reports
+          path: shots/
