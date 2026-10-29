@@ -1,5 +1,17 @@
 // swift-tools-version: 6.0
 import PackageDescription
+import Foundation
+
+let droppyKitDependency: Package.Dependency
+let droppyKitPackageName: String
+
+if let localPath = ProcessInfo.processInfo.environment["DROPPYKIT_PATH"], !localPath.isEmpty {
+    droppyKitDependency = .package(path: localPath)
+    droppyKitPackageName = "DroppyKit"
+} else {
+    droppyKitDependency = .package(url: "https://gitlab.com/droppyformac1/droppykit.git", from: "1.6.0")
+    droppyKitPackageName = "droppykit"
+}
 
 let package = Package(
     name: "Skylet",
@@ -10,7 +22,7 @@ let package = Package(
         .library(name: "Skylet", type: .dynamic, targets: ["Skylet"])
     ],
     dependencies: [
-        .package(url: "https://gitlab.com/droppyformac1/droppykit.git", from: "1.6.0")
+        droppyKitDependency
     ],
     targets: [
         .target(
@@ -27,7 +39,7 @@ let package = Package(
             name: "Skylet",
             dependencies: [
                 "SkyletCore",
-                .product(name: "DroppyKit", package: "droppykit")
+                .product(name: "DroppyKit", package: droppyKitPackageName)
             ],
             path: "Sources/Skylet"
         ),
@@ -35,7 +47,7 @@ let package = Package(
             name: "SkyletHarness",
             dependencies: [
                 "Skylet",
-                .product(name: "DroppyKitHarness", package: "droppykit")
+                .product(name: "DroppyKitHarness", package: droppyKitPackageName)
             ],
             path: "Sources/SkyletHarness"
         )
