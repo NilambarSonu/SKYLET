@@ -54,6 +54,12 @@ jobs:
               t2 = p2.read_text()
               t2 = re.sub(r"if #available\(macOS 26\.0, \*\) \{[\s\S]*?\} else \{([\s\S]*?)\n        \}", r"\1", t2)
               p2.write_text(t2)
+              
+          p_build = kit / "Scripts/build-droplet.sh"
+          if p_build.exists():
+              t_build = p_build.read_text()
+              t_build = re.sub(r"(-Xswiftc -enable-library-evolution\s*)\\?\s*>/dev/null", r"\1", t_build)
+              p_build.write_text(t_build)
           ' "${RUNNER_TEMP}/droppykit"
           echo "${RUNNER_TEMP}/droppykit/Scripts" >> $GITHUB_PATH
           echo "DROPPYKIT_PATH=${RUNNER_TEMP}/droppykit" >> $GITHUB_ENV
