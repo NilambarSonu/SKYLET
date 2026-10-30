@@ -906,27 +906,30 @@ func runAllTests() async {
     assert(engine6.status.remainingSeconds == 0, "Req 6: Remaining seconds is 0 when completed")
 
     // Lifecycle Requirement 7: Completion notification exactly once
+    final class CounterBox: @unchecked Sendable {
+        var count = 0
+    }
     let power7 = LocalMockPower()
     let engine7 = FocusTimerEngine(powerController: power7)
-    var callbackCount = 0
-    var notifCount = 0
+    let callbackBox = CounterBox()
+    let notifBox = CounterBox()
     engine7.onCompletion = { _ in
-        callbackCount += 1
+        callbackBox.count += 1
     }
     let observer = NotificationCenter.default.addObserver(
         forName: FocusTimerEngine.sessionCompletedNotification,
         object: engine7,
         queue: nil
     ) { _ in
-        notifCount += 1
+        notifBox.count += 1
     }
     engine7.start(duration: 100)
     let fireTime = Date().addingTimeInterval(101)
     engine7.updateTick(now: fireTime)
     // Extra tick to verify exactly once guarantee
     engine7.updateTick(now: fireTime.addingTimeInterval(5))
-    assert(callbackCount == 1, "Req 7: onCompletion closure fired exactly once")
-    assert(notifCount == 1, "Req 7: sessionCompletedNotification posted exactly once")
+    assert(callbackBox.count == 1, "Req 7: onCompletion closure fired exactly once")
+    assert(notifBox.count == 1, "Req 7: sessionCompletedNotification posted exactly once")
     NotificationCenter.default.removeObserver(observer)
 
     // Lifecycle Requirement 8: Display-awake activation
