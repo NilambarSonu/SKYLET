@@ -2,7 +2,7 @@ name: Build, Test & Validate Skylet Droplet
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'fix/**', 'feature/**' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -29,42 +29,13 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Clone Official DroppyKit SDK
+      - name: Setup DroppyKit SDK
         run: |
-          git clone --depth 1 https://gitlab.com/droppyformac1/droppykit.git "${RUNNER_TEMP}/droppykit"
-          python3 -c '
-          import pathlib, sys, re
-          kit = pathlib.Path(sys.argv[1])
-          
-          # Patch Package.swift tools version and 6.2 settings
-          pkg = kit / "Package.swift"
-          txt = pkg.read_text().replace("swift-tools-version: 6.2", "swift-tools-version: 6.0")
-          txt = txt.replace(".defaultIsolation(MainActor.self)", "")
-          pkg.write_text(txt)
-          
-          # Patch macOS 26.0 unreleased SwiftUI APIs in DroppyKit sources for macOS 15 SDK
-          p1 = kit / "Sources/DroppyKit/Capabilities/SettingsPagesProviding.swift"
-          if p1.exists():
-              t1 = p1.read_text()
-              t1 = re.sub(r"\} else if #available\(macOS 26\.0, \*\) \{[\s\S]*?\} else \{", "} else {", t1)
-              p1.write_text(t1)
-              
-          p2 = kit / "Sources/DroppyKit/DesignSystem/DroppyGlassControl.swift"
-          if p2.exists():
-              t2 = p2.read_text()
-              t2 = re.sub(r"if #available\(macOS 26\.0, \*\) \{[\s\S]*?\} else \{([\s\S]*?)\n        \}", r"\1", t2)
-              p2.write_text(t2)
-              
-          p_build = kit / "Scripts/build-droplet.sh"
-          if p_build.exists():
-              t_build = p_build.read_text()
-              t_build = re.sub(r"(-Xswiftc -enable-library-evolution\s*)\\?\s*>/dev/null", r"\1", t_build)
-              p_build.write_text(t_build)
-          ' "${RUNNER_TEMP}/droppykit"
+          ./ci/setup-droppykit.sh "${RUNNER_TEMP}/droppykit"
           echo "${RUNNER_TEMP}/droppykit/Scripts" >> $GITHUB_PATH
           echo "DROPPYKIT_PATH=${RUNNER_TEMP}/droppykit" >> $GITHUB_ENV
 
-      - name: Verify DroppyKit Version
+      - name: Verify DroppyKit Version & Pinned Revision
         run: |
           droppykit version
 
@@ -80,10 +51,14 @@ jobs:
         run: |
           droppykit validate --no-submission
 
-      - name: Run Headless Harness Screenshots and Report
+      - name: Verify Universal Mach-O Slices
         run: |
-          mkdir -p shots
-          droppykit run SkyletHarness -- --shots ./shots --report ./shots/report.json || true
+          file .build/Skylet.droplet/Contents/MacOS/Skylet
+          lipo -info .build/Skylet.droplet/Contents/MacOS/Skylet
+
+      - name: Run DroppyKit Harness Checks
+        run: |
+          ./ci/run-harness-checks.sh ./shots
 
       - name: Package Release Bundle & Generate Checksum
         run: |

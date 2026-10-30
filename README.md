@@ -45,7 +45,7 @@ Skylet lives directly inside [Droppy](https://getdroppy.app)’s Dynamic Island 
 - **Interactive Directional Currency Swap**: Instant reversal between foreign currency and INR with smooth $180^\circ$ rotation spring micro-interaction.
 - **Live Rate Refresh**: Manual refresh button with $360^\circ$ rotation animation and concurrent request deduplication.
 - **Clipboard Workflow**: Instant conversion of amounts on your clipboard with one click — zero continuous background clipboard snooping.
-- **One-Click Copy**: Copies clean formatted summary (`889.86 USD = ₹84,732.47 (Rate: 1 USD = 95.22 INR)`) with immediate in-place checkmark feedback.
+- **One-Click Copy**: Copies clean formatted summary (e.g. `100.00 USD = ₹8,350.00 (Illustrative example; real quotes use live market rate)`) with immediate in-place checkmark feedback.
 
 ### ⏱️ Focus Timer & Display-Awake Instrument
 - **Zero-Drift Monotonic Deadline**: System-clock deadline tracking ensures the countdown never drifts if the UI is hidden or backgrounded.
@@ -98,19 +98,28 @@ Skylet works out of the box using free daily reference rates. To unlock live, mi
 
 ---
 
-## Updating an Existing Installation
+## Safe Staged Update Instructions
 
-Upgrading Skylet to a new release is safe and preserves all your Keychain-stored API keys and preferences:
+Updating Skylet is safe and completely preserves your Keychain-stored Twelve Data API key and local preferences. Follow this staged replacement procedure to ensure zero downtime and instant rollback capability:
 
-1. Download the latest `Skylet.droplet.zip` from [Releases](https://github.com/NilambarSonu/SKYLET/releases/latest).
-2. Unpack the ZIP archive.
-3. Replace the bundle at:
+1. **Stage Backup**: Move your current `Skylet.droplet` to `~/.Trash` or create a backup copy:
    ```bash
-   rm -rf ~/Library/Application\ Support/Droppy/Droplets/skylet/Skylet.droplet
+   cp -R ~/Library/Application\ Support/Droppy/Droplets/skylet/Skylet.droplet ~/Downloads/Skylet-backup.droplet
+   ```
+2. **Install New Release**: Download and unzip the latest `Skylet.droplet.zip` from [Releases](https://github.com/NilambarSonu/SKYLET/releases/latest), then copy `Skylet.droplet` to your Droppy droplets folder:
+   ```bash
    cp -R Skylet.droplet ~/Library/Application\ Support/Droppy/Droplets/skylet/
    ```
-4. Restart Droppy (`killall Droppy && open /Applications/Droppy.app`).
-5. Your saved Twelve Data API key and preferences remain untouched in the macOS Keychain.
+3. **Reload Droplet**: Restart Droppy or trigger a droplet reload:
+   ```bash
+   killall Droppy && open /Applications/Droppy.app
+   ```
+4. **Automated Rollback**: If the new release fails to initialize for any reason, restore your previous version immediately:
+   ```bash
+   rm -rf ~/Library/Application\ Support/Droppy/Droplets/skylet/Skylet.droplet
+   cp -R ~/Downloads/Skylet-backup.droplet ~/Library/Application\ Support/Droppy/Droplets/skylet/Skylet.droplet
+   killall Droppy && open /Applications/Droppy.app
+   ```
 
 ---
 

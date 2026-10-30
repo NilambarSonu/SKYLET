@@ -38,7 +38,7 @@ public enum CurrencyFormatter {
         format(amount: amount, currency: .inr, includeSymbol: true)
     }
 
-    /// Formats an exchange rate pair, e.g., "1 USD = 95.2200 INR".
+    /// Formats an exchange rate pair, e.g., "1 USD = 84.5000 INR".
     public static func formatRate(from: CurrencyCode, to: CurrencyCode, rate: Decimal) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal

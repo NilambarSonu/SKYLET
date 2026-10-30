@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2026-10-30
+
+### Status
+Production Release Hardening & Currency Data Integrity Update.
+
+### Highlights
+- **Release Pipeline Hardening**: Resolved DroppyKit harness target discovery by ordering `SkyletHarness` before other executable targets in `Package.swift`.
+- **Reproducible DroppyKit Build**: Pinned official DroppyKit SDK to verified stable commit `4eee564d5d5896137ecc2b4e0df50975cff5a4c6` (v1.20.1) in `ci/setup-droppykit.sh` with strict SHA verification and fail-fast patch assertions.
+- **Explicit CI Harness Verification**: Replaced silent masking (`|| true`) with `ci/run-harness-checks.sh` to validate headless screenshot generation and test report output.
+- **Harden Release Triggers**: Enhanced `.github/workflows/release.yml` with semantic tag format validation (`vMAJOR.MINOR.PATCH`), `origin/main` commit ancestry check, and `droplet.json` version synchronization.
+- **Strict Currency Provenance & Freshness**: Separated quote age, fetch age, and cache state in `CurrencyRateCache` and `TwelveDataRateProvider`. Quotes originally classified as `.delayed` or `.stale` strictly retain their status on cache retrieval and are never erroneously labeled as `.cached` or `.live`.
+- **Unified 72-Hour Stale Threshold**: Standardized the maximum stale threshold to 72 hours across provider, cache, UI, and documentation to properly accommodate weekend forex market closures.
+- **Controllable Clock Unit Tests**: Expanded the automated test suite to 109 passing tests in `SkyletTestsRunner`, introducing deterministic tests with injected clocks for all 9 freshness and cache provenance scenarios.
+- **Documentation Refinement & Safe Updates**: Removed misleading mock-rate example (`95.22`) from README and public docs, replacing it with an explicitly labeled illustrative example. Added safe staged update and rollback instructions.
+
+### Changed
+- `Package.swift`: Reordered targets so `SkyletHarness` is the first executable target.
+- `Sources/SkyletCore/Currency/CurrencyRateCache.swift`: Unified stale threshold to 72h; separated quote age vs fetch age; preserved `.delayed` and `.stale` provenance; injected controllable `dateProvider`.
+- `Sources/SkyletCore/Currency/TwelveDataRateProvider.swift`: Unified stale threshold to 72h; injected controllable `dateProvider`.
+- `Sources/SkyletCore/Currency/CurrencyRateService.swift`: Preserved honest cache provenance during offline fallback; injected controllable `dateProvider`.
+- `Sources/SkyletTestsRunner/main.swift`: Added 12 new deterministic tests covering all 9 freshness and cache provenance scenarios; eliminated blocking Keychain prompts in headless execution.
+- `.github/workflows/build.yml` & `.github/workflows/release.yml`: Pinned DroppyKit SDK commit; added `ci/run-harness-checks.sh` and release gating preconditions.
+- `droplet.json`: Version bumped to `1.0.1`.
+- `README.md`, `docs/RELEASE.md`, `docs/KNOWN_LIMITATIONS.md`, `docs/TESTING.md`: Updated documentation, test counts, and safe staged update procedures.
+
+---
+
 ## [1.0.0] - 2026-10-30
 
 ### Status
@@ -68,4 +95,5 @@ First Official Production Release.
 
 ---
 
+[1.0.1]: https://github.com/NilambarSonu/SKYLET/releases/tag/v1.0.1
 [1.0.0]: https://github.com/NilambarSonu/SKYLET/releases/tag/v1.0.0

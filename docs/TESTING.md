@@ -4,7 +4,7 @@ Skylet includes a comprehensive automated test suite verifying parsing correctne
 
 ## Test Coverage Summary
 
-The test suite contains **97 automated tests** across four main domains:
+The test suite contains **109 automated tests** across four main domains:
 
 ### 1. Currency Parser Tests (29 tests)
 - **Input Hygiene**: Empty string, whitespace-only, arbitrary alphabetic text without numbers.
@@ -33,11 +33,11 @@ The test suite contains **97 automated tests** across four main domains:
 - **Formatting**:
   - Indian Rupee formatting (`₹2,500.00`).
   - Symbol formatting (`€49.99`, `100.00 AED`).
-  - Exchange rate string formatting (`1 USD = 95.22 INR`).
+  - Exchange rate string formatting (e.g., `1 USD = 84.50 INR`).
   - Compact rate with ₹ symbol (`1 USD = ₹95.24`).
   - Clipboard copy summary (`$25.00 = ₹2,380.50`).
 
-### 3. Real-Time FX, Twelve Data & Keychain Tests (31 tests)
+### 3. Real-Time FX, Twelve Data, Keychain & Provenance Tests (43 tests)
 - **Keychain Storage & Retrieval**:
   - Secure saving, retrieval, update, and deletion in `InMemoryKeychainManager`.
 - **Twelve Data Provider Validation**:
@@ -58,6 +58,16 @@ The test suite contains **97 automated tests** across four main domains:
   - Quote exceeding 72h marked `STALE`.
   - Retrieved live quote from cache marked `CACHED` (never `LIVE`).
   - Subtext formatting verified for `LIVE`, `CACHED`, and `DAILY REFERENCE`.
+- **Deterministic Controllable Clock & Freshness Matrix (9 Cases)**:
+  - Case 1: Fresh live quote (`quoteAge <= 15m`) evaluates to `.live`.
+  - Case 2: Cached live quote (`quoteAge <= 15m, fetchAge <= 5m`) evaluates to `.cached`, `isStale == false`.
+  - Case 3: Delayed quote (`quoteAge > 15m && <= 72h`) evaluates to `.delayed`.
+  - Case 4: Cached delayed quote strictly preserves `.delayed` (never converted to `.cached` or `.live`).
+  - Case 5: Stale quote (`quoteAge > 72h`) evaluates to `.stale`.
+  - Case 6: Cached stale quote retrieved strictly as `.stale`, `isStale == true`.
+  - Case 7: Quote live when cached becomes `.stale` after advancing controllable clock past 72h.
+  - Case 8: Fallback on network failure returns cached quote with accurate provenance (`.cached`, `.delayed`, or `.stale`; never upgraded to `.live`).
+  - Case 9: Daily reference fallback returns `.dailyReference` (`quoteAge <= 12h`) or `.stale` (`quoteAge > 12h`).
 - **Honest Fallback & Deduplication**:
   - Transparent fallback to daily reference provider when Twelve Data fails or is unconfigured.
   - Concurrent requests for identical currency pair share a single in-flight `Task`.
@@ -65,8 +75,6 @@ The test suite contains **97 automated tests** across four main domains:
   - `889.86 USD * 95.2450 = 84754.7157 INR` calculated with decimal-safe precision.
 - **Cache Isolation**:
   - In-memory test cache guarantees no test mock data ever touches user's production cache.
-- **Optional Manual Integration Test**:
-  - If a real Twelve Data key is configured in macOS Keychain, tests live USD/INR directly.
 
 ### 4. Focus Timer & Power Assertions (28 tests)
 - **Presets**: 15m (900s), 30m (1800s), 45m (2700s), 60m (3600s), 120m (7200s).
@@ -88,7 +96,7 @@ swift run SkyletTestsRunner
 Expected output:
 ```text
 ==================================================
-TEST RESULTS: 97 passed, 0 failed
+TEST RESULTS: 109 passed, 0 failed
 ==================================================
 ALL TESTS PASSED SUCCESSFULLY!
 ```
