@@ -2,6 +2,9 @@
 //  SettingsView.swift
 //  Skylet
 //
+//  Twelve Data Forex API & Keychain Configuration View
+//  Quiet Precision. Instant Intelligence.
+//
 
 import SwiftUI
 import DroppyKit
@@ -27,32 +30,32 @@ public struct SettingsView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DroppySpacing.sm) {
             // Header
             HStack {
                 Label("Twelve Data Forex API", systemImage: "key.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(SkyletTheme.headerFont)
                     .foregroundStyle(SkyletTheme.skyBlue)
                 Spacer()
                 if hasStoredKey {
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(Color.green)
-                            .frame(width: 6, height: 6)
+                            .fill(SkyletTheme.statusLive)
+                            .frame(width: 5, height: 5)
                         Text("Configured in Keychain")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .font(SkyletTheme.captionFont)
+                            .foregroundStyle(SkyletTheme.secondaryText)
                     }
                 }
             }
 
             Text("Enter your Twelve Data API key to enable live, real-time USD/INR and global forex quotes. Your key is stored securely in macOS Keychain and never leaves your Mac.")
-                .font(.system(size: 11))
+                .font(SkyletTheme.captionFont)
                 .foregroundStyle(SkyletTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             // API Key Input Row
-            HStack(spacing: 8) {
+            HStack(spacing: DroppySpacing.xs) {
                 Group {
                     if isRevealed {
                         TextField("Twelve Data API Key", text: $apiKeyInput)
@@ -61,15 +64,11 @@ public struct SettingsView: View {
                     }
                 }
                 .textFieldStyle(.plain)
-                .font(.system(size: 12, design: .monospaced))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(SkyletTheme.cardFill)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
+                .font(.system(size: 11, design: .monospaced))
+                .padding(.horizontal, DroppySpacing.sm)
+                .padding(.vertical, 5)
+                .background(SkyletTheme.controlBackground)
+                .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.sm, style: .continuous))
 
                 // Toggle mask
                 Button {
@@ -77,7 +76,10 @@ public struct SettingsView: View {
                 } label: {
                     Image(systemName: isRevealed ? "eye.slash" : "eye")
                         .font(.system(size: 11))
-                        .foregroundStyle(SkyletTheme.secondaryText)
+                        .foregroundStyle(SkyletTheme.tertiaryText)
+                        .padding(5)
+                        .background(SkyletTheme.controlBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help(isRevealed ? "Hide key" : "Show key")
@@ -92,24 +94,27 @@ public struct SettingsView: View {
                     Image(systemName: "doc.on.clipboard")
                         .font(.system(size: 11))
                         .foregroundStyle(SkyletTheme.skyBlue)
+                        .padding(5)
+                        .background(SkyletTheme.controlBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help("Paste key from clipboard")
             }
 
             // Action Buttons
-            HStack(spacing: 8) {
+            HStack(spacing: DroppySpacing.xs) {
                 // Save Button
                 Button {
                     saveKey()
                 } label: {
                     Text("Save Key")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(SkyletTheme.compactButtonFont)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, 4)
                         .background(SkyletTheme.skyBlue)
                         .foregroundStyle(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -127,12 +132,12 @@ public struct SettingsView: View {
                         }
                         Text("Test Connection")
                     }
-                    .font(.system(size: 11, weight: .medium))
+                    .font(SkyletTheme.compactButtonFont)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.1))
-                    .foregroundStyle(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .padding(.vertical, 4)
+                    .background(SkyletTheme.controlBackground)
+                    .foregroundStyle(SkyletTheme.primaryText)
+                    .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(isTesting || (apiKeyInput.isEmpty && !hasStoredKey))
@@ -143,12 +148,12 @@ public struct SettingsView: View {
                         removeKey()
                     } label: {
                         Text("Remove")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(SkyletTheme.compactButtonFont)
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(Color.red.opacity(0.15))
-                            .foregroundStyle(Color.red.opacity(0.9))
-                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            .padding(.vertical, 4)
+                            .background(SkyletTheme.statusError.opacity(0.18))
+                            .foregroundStyle(SkyletTheme.statusError)
+                            .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -160,46 +165,50 @@ public struct SettingsView: View {
             if let result = testResult {
                 switch result {
                 case .success(let rate, let timestamp, let latency):
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Color.green)
+                            .font(.system(size: 10))
+                            .foregroundStyle(SkyletTheme.statusLive)
                         Text("Connected: 1 USD = ₹\(rate) · \(timestamp) (\(latency)ms)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Color.green)
+                            .font(SkyletTheme.captionFont)
+                            .foregroundStyle(SkyletTheme.statusLive)
                     }
-                    .padding(6)
-                    .background(Color.green.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(SkyletTheme.statusLive.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
+
                 case .failure(let errorMsg):
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.red)
+                            .font(.system(size: 10))
+                            .foregroundStyle(SkyletTheme.statusError)
                         Text(errorMsg)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Color.red)
+                            .font(SkyletTheme.captionFont)
+                            .foregroundStyle(SkyletTheme.statusError)
                             .lineLimit(2)
                     }
-                    .padding(6)
-                    .background(Color.red.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(SkyletTheme.statusError.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
                 }
             } else if let msg = statusMessage {
                 Text(msg)
-                    .font(.system(size: 11))
+                    .font(SkyletTheme.captionFont)
                     .foregroundStyle(SkyletTheme.skyBlue)
             }
 
             // Free Plan Quota Note
             HStack(spacing: 4) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 10))
+                    .font(.system(size: 9))
                 Text("Free Basic Plan: 8 credits/min, 800 req/day. Skylet automatically caches queries for 5 minutes.")
-                    .font(.system(size: 10))
+                    .font(SkyletTheme.captionFont)
             }
             .foregroundStyle(SkyletTheme.tertiaryText)
         }
-        .padding(12)
-        .background(SkyletTheme.midnightSurface)
+        .padding(DroppySpacing.sm)
         .onAppear {
             loadExistingKeyStatus()
         }
@@ -258,7 +267,6 @@ public struct SettingsView: View {
         let startTime = DispatchTime.now()
 
         Task {
-            // Temporary in-memory keychain for testing
             let tempKeychain = InMemoryKeychainManager(initialItems: ["twelvedata_api_key": testKey])
             let provider = TwelveDataRateProvider(keychain: tempKeychain)
 

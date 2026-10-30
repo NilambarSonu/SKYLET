@@ -2,6 +2,9 @@
 //  SkyletRootView.swift
 //  Skylet
 //
+//  Skylet Root Widget Composition conforming to DroppyKit Design Guidelines.
+//  Quiet Precision. Instant Intelligence.
+//
 
 import SwiftUI
 import DroppyKit
@@ -37,25 +40,29 @@ public struct SkyletRootView: View {
             headerRow
 
             // Content branching on selected mode and compactness
-            switch droplet.selectedMode {
-            case .currency:
-                CurrencyView(droplet: droplet, isCompact: context.isCompact)
-            case .focus:
-                FocusTimerView(droplet: droplet, isCompact: context.isCompact)
-            case .settings:
-                SettingsView(droplet: droplet)
+            Group {
+                switch droplet.selectedMode {
+                case .currency:
+                    CurrencyView(droplet: droplet, isCompact: context.isCompact)
+                case .focus:
+                    FocusTimerView(droplet: droplet, isCompact: context.isCompact)
+                case .settings:
+                    SettingsView(droplet: droplet)
+                }
             }
+            .transition(.opacity)
 
             Spacer(minLength: 0)
         }
         .padding(context.contentInsets)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .animation(SkyletTheme.quickAnimation, value: droplet.selectedMode)
     }
 
     // MARK: - Header Row
 
     private var headerRow: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DroppySpacing.xsm) {
             // App symbol and title
             Image(systemName: "sparkles")
                 .font(.system(size: 12, weight: .semibold))
@@ -67,12 +74,14 @@ public struct SkyletRootView: View {
 
             Spacer(minLength: DroppySpacing.md)
 
-            // Segmented mode switcher (Currency vs Focus)
+            // Segmented mode switcher
             if !context.isCompact {
                 HStack(spacing: 2) {
                     ForEach(SkyletMode.allCases) { mode in
                         Button {
-                            droplet.selectedMode = mode
+                            withAnimation(SkyletTheme.quickAnimation) {
+                                droplet.selectedMode = mode
+                            }
                         } label: {
                             HStack(spacing: 3) {
                                 Image(systemName: mode.iconName)
@@ -81,8 +90,8 @@ public struct SkyletRootView: View {
                                     .font(.system(size: 10, weight: droplet.selectedMode == mode ? .semibold : .regular))
                             }
                             .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(droplet.selectedMode == mode ? SkyletTheme.skyBlue.opacity(0.25) : Color.clear)
+                            .padding(.vertical, 3)
+                            .background(droplet.selectedMode == mode ? SkyletTheme.skyBlue.opacity(0.22) : Color.clear)
                             .foregroundStyle(droplet.selectedMode == mode ? SkyletTheme.skyBlue : SkyletTheme.secondaryText)
                             .clipShape(Capsule())
                         }
@@ -90,20 +99,24 @@ public struct SkyletRootView: View {
                     }
                 }
                 .padding(2)
-                .background(SkyletTheme.cardFill)
+                .background(SkyletTheme.controlBackground)
                 .clipShape(Capsule())
             } else {
                 // Paired compact toggle
                 Button {
-                    droplet.selectedMode = (droplet.selectedMode == .currency) ? .focus : .currency
+                    withAnimation(SkyletTheme.quickAnimation) {
+                        droplet.selectedMode = (droplet.selectedMode == .currency) ? .focus : .currency
+                    }
                 } label: {
                     Image(systemName: droplet.selectedMode.iconName)
                         .font(.system(size: 10))
                         .foregroundStyle(SkyletTheme.skyBlue)
+                        .padding(4)
+                        .background(SkyletTheme.controlBackground)
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
         }
     }
 }
-
