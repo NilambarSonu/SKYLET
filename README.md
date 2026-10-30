@@ -1,135 +1,166 @@
 # Skylet ✦
 
-**Premium Native DroppyKit Utility for macOS — Currency Intelligence + Focus Timer**
+<p align="center">
+  <img src="Skylet.icon/icon_256x256.png" alt="Skylet Icon" width="96" height="96" />
+</p>
 
-Skylet is a lightweight, beautifully crafted native macOS droplet for [Droppy](https://getdroppy.app). It lives directly inside Droppy’s Dynamic Island and shelf, delivering two focused productivity tools without requiring an account, API key, background daemon, or system-wide setting changes:
+<p align="center">
+  <strong>A premium native macOS DroppyKit utility featuring live currency conversion and a distraction-free Focus Timer.</strong>
+</p>
 
-1. **Currency Intelligence**: Real-time foreign exchange conversion to Indian Rupees (INR) using live quotes from Twelve Data Forex API with fallback reference providers, keychain-secured API key management, and instant clipboard import.
-2. **Focus Timer**: Keep your Mac’s display awake during deep study, reading, or coding sessions without modifying global macOS System Settings.
+<p align="center">
+  <a href="https://github.com/NilambarSonu/SKYLET/releases/latest"><img src="https://img.shields.io/github/v/release/NilambarSonu/SKYLET?color=38BDF8&label=release" alt="Latest Release" /></a>
+  <a href="https://github.com/NilambarSonu/SKYLET/actions/workflows/build.yml"><img src="https://github.com/NilambarSonu/SKYLET/actions/workflows/build.yml/badge.svg" alt="Build Status" /></a>
+  <img src="https://img.shields.io/badge/platform-macOS%2014.0%2B-0B1220" alt="Platform macOS 14+" />
+  <img src="https://img.shields.io/badge/Droppy-15.3.0%2B-38BDF8" alt="Droppy 15.3.0+" />
+  <img src="https://img.shields.io/badge/architecture-universal%20(arm64%20%2B%20x86__64)-159BE8" alt="Universal Architecture" />
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/NilambarSonu/SKYLET?color=7DD3FC" alt="License MIT" /></a>
+</p>
 
 ---
 
-## Features
+### [➔ Download Latest SKYLET Release](https://github.com/NilambarSonu/SKYLET/releases/latest)
+
+Skylet lives directly inside [Droppy](https://getdroppy.app)’s Dynamic Island and shelf. It delivers two essential native macOS workflows designed around **Quiet Precision. Instant Intelligence**:
+
+1. **Currency Intelligence**: Real-time foreign exchange conversion to Indian Rupees (INR) using live quotes from Twelve Data Forex API with Apple Keychain security, honest quote timestamps, and instant clipboard import.
+2. **Focus Timer**: Keep your Mac display awake during deep study, reading, or coding sessions using native macOS power assertions without touching global System Settings.
+
+---
+
+## Key Features
 
 ### 🪙 Currency Intelligence & Real-Time FX
-- **Twelve Data Real-Time Forex API**: High-frequency real-time quotes for USD/INR, EUR/INR, GBP/INR, and over 1,500 currency pairs.
-- **Secure macOS Keychain API Key Storage**: Stores your personal Twelve Data API key directly in Apple Keychain (`kSecClassGenericPassword`). Never logged, never shared, and never committed to GitHub.
-- **Honest Provenance & Freshness Badges**: Rates explicitly indicate whether they are `LIVE` (verified recent quote), `DELAYED` (market closed / delayed), `CACHED` (short 5m pair cache), or `DAILY REFERENCE` (fallback).
-- **Intelligent Local Parsing**: Paste or type amounts like `$25`, `€49.99`, `100 USD`, `25 euros`, `¥5000`, `AED 100`, or `₹100`.
-- **Ambiguous Symbol Protection**: Never silently guesses ambiguous symbols. An input of `$25` gracefully offers candidate selectors (`USD`, `CAD`, `AUD`, `SGD`, etc.), and `¥5000` distinguishes between `JPY` and `CNY`.
-- **Decimal-Safe Financial Arithmetic**: Calculations use pure Swift `Decimal` (`NSDecimalMultiply`) to avoid binary floating-point roundoff errors.
-- **Keyless Fallback Providers**: Seamless fallback to [ExchangeRate-API](https://open.er-api.com) and [Frankfurter (ECB)](https://api.frankfurter.dev) if an API key is unconfigured or rate limited.
-- **Offline & Stale-Rate Resilience**: Actor-isolated caching serves cached rates with an honest stale notice when offline.
-- **Explicit Clipboard Workflow**: Read clipboard content only upon clicking the explicit **Paste** button — no continuous background clipboard polling.
-- **One-Click Copy & Currency Swap**: Copy the formatted result (`₹2,380.50`) with immediate visual confirmation, or swap source and target currencies.
-- **Live Dynamic Island Display**: Shows latest converted INR amount right on the notch when Focus Timer is idle.
-- **Dedicated Settings Pane**: Configure and test your Twelve Data API key in Droppy Settings or right in the widget with live latency feedback.
+- **Twelve Data Real-Time Forex API**: High-frequency live exchange rates for `USD/INR`, `EUR/INR`, `GBP/INR`, and over 1,500 currency pairs.
+- **Apple macOS Keychain Security**: Stores your Twelve Data API key directly in macOS Keychain (`kSecClassGenericPassword`). Never logged, never shared, and never committed to source control.
+- **Honest Provenance & Freshness Tracking**: Rates explicitly declare their true origin:
+  - `LIVE`: Verified quote from Twelve Data received within the last 15 minutes.
+  - `DELAYED`: Active quote during closed market hours or weekend halts.
+  - `CACHED`: Served from local 5-minute pair cache (never falsely marked as live).
+  - `DAILY REFERENCE`: Fallback reference rate from ExchangeRate-API or Frankfurter (ECB).
+  - `STALE`: Quote age exceeding 72 hours.
+  - `UNAVAILABLE`: Complete network failure.
+- **Pure Decimal-Safe Arithmetic**: Financial conversions execute exclusively through Foundation `Decimal` (`NSDecimalMultiply`) preventing floating-point roundoff errors.
+- **Searchable Currency Directory**: Built-in modal (`CurrencySelectorView`) with instant filtering by country, ISO currency code, symbol, or full name, with popular quick-pills (`USD`, `EUR`, `GBP`, `AED`, `CAD`, `AUD`, `SGD`, `JPY`, `SAR`, `CNY`).
+- **Interactive Directional Currency Swap**: Instant reversal between foreign currency and INR with smooth $180^\circ$ rotation spring micro-interaction.
+- **Live Rate Refresh**: Manual refresh button with $360^\circ$ rotation animation and concurrent request deduplication.
+- **Clipboard Workflow**: Instant conversion of amounts on your clipboard with one click — zero continuous background clipboard snooping.
+- **One-Click Copy**: Copies clean formatted summary (`889.86 USD = ₹84,732.47 (Rate: 1 USD = 95.22 INR)`) with immediate in-place checkmark feedback.
 
-### ⏱️ Focus Timer & Display-Awake Mode
-- **Zero-Drift Countdown**: Deadline-based timer model ensures countdown never drifts if the UI is hidden or the system experiences scheduling delays.
-- **Native Power Assertion**: Uses Apple's public `ProcessInfo.processInfo.beginActivity(options: .idleDisplaySleepDisabled)` API to prevent idle screen sleep without administrator privileges, terminal `caffeinate` scripts, or mouse jiggling.
-- **Strict Assertion Lifecycle**: Acquires exactly one power assertion on start; releases it immediately on stop, pause, natural completion, or droplet deactivation.
-- **Live Activity Integration**: Publishes a compact live activity row showing countdown status in the Dynamic Island / notch wings during active sessions.
-- **Flexible Presets**: Instant 15m, 30m, 45m, 60m, 120m duration pills and custom duration entry.
+### ⏱️ Focus Timer & Display-Awake Instrument
+- **Zero-Drift Monotonic Deadline**: System-clock deadline tracking ensures the countdown never drifts if the UI is hidden or backgrounded.
+- **Native Power Assertion**: Uses Apple's public `ProcessInfo.beginActivity(options: .idleDisplaySleepDisabled)` API to prevent idle screen sleep without administrator rights, terminal scripts, or mouse jiggling.
+- **Strict Assertion Lifecycle**: Automatically releases display-awake assertions on pause, cancellation, session completion, or droplet deactivation.
+- **Calibrated Duration Presets**: Quick-select pills for 15m, 30m, 45m, 60m, 120m, plus custom duration entry.
+- **Restrained Circular Progress Gauge**: Custom 52pt progress ring with subtle track, sky-blue progress stroke, and session status glyphs (`timer`, `sun.max.fill`, `pause.fill`, `checkmark`).
 
----
-
-## Design System
-
-Skylet adheres strictly to the official [DroppyKit Design Guidelines](https://getdroppy.app/docs/droppykit/design):
-- **Surfaces**: Dark, dense chrome (`#0B1220`) matching Droppy's notch shell. No faux card borders or heavy outlines.
-- **Accent**: Clear sky blue (`#38BDF8`) with refined secondary tones (`#7DD3FC`).
-- **Typography**: Native Apple San Francisco typography with tabular and monospaced digits for jitter-free numbers.
-- **Dual Surface Layouts**: Full interactive experience in Solo shelf layout (420pt) and streamlined glanceable layout in Paired shelf mode (210pt).
+### 🏝️ Dynamic Island & Shelf Integration
+- **Dual Surface Layouts**: Full interactive canvas in Solo shelf layout (420pt) and compact glanceable canvas in Paired shelf mode (210pt).
+- **Dynamic Island / Notch Live Activity**: Publishes running countdown in the notch wings during active focus sessions, and live converted INR amounts when idle.
+- **Native Droppy Settings Pane**: Accessible via **Droppy Settings ➔ Skylet** with masked key input, latency tester, and quota notices.
 
 ---
 
-## Compatibility & Requirements
+## Installation & Setup
 
-| Component | Minimum Version |
-| :--- | :--- |
-| **macOS** | 14.0 (Sonoma) or later |
-| **Droppy** | 15.3.0 or later |
-| **DroppyKit SDK** | 1.6.0+ (ABI 1 compatible) |
-| **Swift Toolchain** | Swift 6.0+ / Xcode 15.4+ or Xcode 16+ |
+### Requirements
+- **macOS**: 14.0 (Sonoma) or macOS 15.0+ (Sequoia)
+- **Droppy**: 15.3.0 or later (installed in `/Applications/Droppy.app`)
+- **Architecture**: Universal binary (`arm64` Apple Silicon + `x86_64` Intel)
+
+### Step 1: Download the Droplet
+Download [`Skylet.droplet.zip`](https://github.com/NilambarSonu/SKYLET/releases/latest) from the latest release and unzip it to obtain `Skylet.droplet`.
+
+### Step 2: Install into Droppy
+**Method A (Drag & Drop — Recommended)**:
+1. Open Droppy from your menu bar or Applications folder.
+2. Open **Settings** (`⌘,`) and navigate to **Droplet Store** (or **Developer**).
+3. Drag and drop `Skylet.droplet` into Droppy.
+4. Droppy will verify and load Skylet directly into your shelf.
+
+**Method B (Manual Copy)**:
+Copy `Skylet.droplet` to your Droppy droplets directory:
+```bash
+mkdir -p ~/Library/Application\ Support/Droppy/Droplets/skylet
+cp -R Skylet.droplet ~/Library/Application\ Support/Droppy/Droplets/skylet/
+```
+Then restart Droppy:
+```bash
+killall Droppy && open /Applications/Droppy.app
+```
+
+### Step 3: Configure Real-Time Forex (Optional)
+Skylet works out of the box using free daily reference rates. To unlock live, minute-by-minute real-time quotes:
+1. Get a free API key at [Twelve Data](https://twelvedata.com/pricing) (Free tier: 800 req/day, 8 credits/min).
+2. Open **Droppy Settings ➔ Skylet** (or open Skylet and switch to the **Settings** tab).
+3. Paste your key and click **Test Connection** to confirm connectivity.
+4. Click **Save Key**. Skylet will store it securely in macOS Keychain and immediately activate real-time quotes.
 
 ---
 
-## Building & Verification
+## Updating an Existing Installation
 
-### 1. Run Automated Unit Tests (Locally)
-Skylet includes 97 automated tests covering parsing, arithmetic precision, Twelve Data real-time integration, Keychain security, cache behavior, deadline accuracy, and power assertion lifecycles:
+Upgrading Skylet to a new release is safe and preserves all your Keychain-stored API keys and preferences:
+
+1. Download the latest `Skylet.droplet.zip` from [Releases](https://github.com/NilambarSonu/SKYLET/releases/latest).
+2. Unpack the ZIP archive.
+3. Replace the bundle at:
+   ```bash
+   rm -rf ~/Library/Application\ Support/Droppy/Droplets/skylet/Skylet.droplet
+   cp -R Skylet.droplet ~/Library/Application\ Support/Droppy/Droplets/skylet/
+   ```
+4. Restart Droppy (`killall Droppy && open /Applications/Droppy.app`).
+5. Your saved Twelve Data API key and preferences remain untouched in the macOS Keychain.
+
+---
+
+## Architecture & Verification
+
+Skylet is engineered with strict separation between UI, financial domain logic, and hardware assertions:
+
+```
+SKYLET
+├── Sources/
+│   ├── SkyletCore/                  # Pure domain logic (zero host UI dependencies)
+│   │   ├── Currency/                # Currency parser, Decimal arithmetic, Twelve Data provider
+│   │   ├── Focus/                   # Monotonic timer, ProcessInfo power assertion controller
+│   │   └── Security/                # Apple Security framework Keychain manager
+│   ├── Skylet/                      # DroppyKit UI & Presentation layer
+│   │   ├── Theme/                   # SkyletTheme design tokens (AdaptiveColors, DroppySpacing)
+│   │   └── UI/                      # CurrencyView, CurrencySelectorView, FocusTimerView, SettingsView
+│   └── SkyletTestsRunner/           # 97 automated unit tests
+├── droplet.json                     # DroppyKit manifest (ABI 1, minAPI 1.6.0)
+└── .github/workflows/               # CI build & automated release pipelines
+```
+
+### Run Automated Tests Locally
+Skylet includes 97 automated unit tests covering financial arithmetic precision, parser edge cases, Twelve Data HTTP status codes, Keychain security, and power assertion lifecycles:
 
 ```bash
 swift run SkyletTestsRunner
 ```
 
-Expected output:
-```text
-==================================================
-TEST RESULTS: 97 passed, 0 failed
-==================================================
-ALL TESTS PASSED SUCCESSFULLY!
-```
-
-### 2. Validate with DroppyKit
-Run DroppyKit's official submission and manifest validator:
+### DroppyKit Validation
+Validate the bundle using DroppyKit's official verification tool:
 
 ```bash
-export PATH="/path/to/droppykit/Scripts:$PATH"
 droppykit validate --no-submission
 ```
 
-### 3. Build the Shipping Droplet Bundle
-Build the release bundle using DroppyKit's compiler script (ensures library evolution and dynamic framework linkage):
-
-```bash
-droppykit build --arch arm64
-```
-This produces `.build/Skylet.droplet`.
-
-### 4. Run the Development Harness
-Preview Skylet inside Droppy's authentic settings chrome:
-
-```bash
-droppykit run
-```
-Or run headless screenshot and verdict capture:
-
-```bash
-swift run SkyletHarness -- --shots ./shots --report ./shots/report.json
-```
-
 ---
 
-## Safe Installation into Droppy
+## Documentation
 
-1. Open **Droppy** on your Mac.
-2. Open **Settings** (`⌘,`).
-3. Navigate to **Store** ➔ **Local Droplets** (or Developer tab).
-4. Drag and drop `Skylet.droplet` into the window.
-5. Droppy verifies the droplet handshake and loads Skylet onto your shelf.
-
-*To uninstall or rollback, remove Skylet from Droppy Settings ➔ Installed Droplets.*
-
----
-
-## Architecture
-
-For an in-depth breakdown of components and data flows, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-For verification details and test suites, see [docs/TESTING.md](docs/TESTING.md).
-
-For release instructions and checksum verification, see [docs/RELEASE.md](docs/RELEASE.md).
-
-For privacy commitments, see [docs/PRIVACY.md](docs/PRIVACY.md).
-
-For platform limitations and boundaries, see [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
+- [Changelog](CHANGELOG.md) — Complete release history and version notes
+- [Release Guide](docs/RELEASE.md) — Packaging and distribution details
+- [Architecture](docs/ARCHITECTURE.md) — Deep-dive into Skylet's subsystems
+- [Known Limitations](docs/KNOWN_LIMITATIONS.md) — Transparent platform boundaries and trade-offs
+- [Testing Guide](docs/TESTING.md) — Test suite layout and mock isolation
+- [Privacy Policy](docs/PRIVACY.md) — Zero tracking, local-only credentials
 
 ---
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-Copyright © 2026 NilambarSonu Behera.
-
+Skylet is open-source software released under the [MIT License](LICENSE).
+Droppy and DroppyKit are trademarks of their respective owners.
