@@ -30,11 +30,6 @@ let package = Package(
             dependencies: [],
             path: "Sources/SkyletCore"
         ),
-        .executableTarget(
-            name: "SkyletTestsRunner",
-            dependencies: ["SkyletCore"],
-            path: "Sources/SkyletTestsRunner"
-        ),
         .target(
             name: "Skylet",
             dependencies: [
@@ -50,6 +45,11 @@ let package = Package(
                 .product(name: "DroppyKitHarness", package: droppyKitPackageName)
             ],
             path: "Sources/SkyletHarness"
+        ),
+        .executableTarget(
+            name: "SkyletTestsRunner",
+            dependencies: ["SkyletCore"],
+            path: "Sources/SkyletTestsRunner"
         )
     ]
 )

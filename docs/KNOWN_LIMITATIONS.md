@@ -19,7 +19,7 @@ This document provides transparent engineering documentation regarding platform 
 
 ## 3. Real-Time Forex Quotas & Market Hours
 - **Twelve Data Free Basic Tier**: Twelve Data provides 800 free API requests per day and up to 8 credits per minute. Skylet incorporates an automatic 5-minute pair cache to keep usage well below free plan limits during active sessions.
-- **Weekend Market Closure**: Foreign exchange markets do not operate continuously 24/7 at standard retail liquidity. Over weekends (Friday evening through Sunday evening UTC) or central bank bank holidays, currency quotes are static. Skylet preserves the latest quote and honestly marks it as `DELAYED`, displaying the original quote timestamp rather than faking recent live ticks.
+- **Weekend Market Closure**: Foreign exchange markets do not operate continuously 24/7 at standard retail liquidity. Over weekends (Friday evening through Sunday evening UTC) or central bank bank holidays, currency quotes are static. Skylet preserves the latest quote and honestly marks it as `DELAYED` for up to 72 hours, displaying the original quote timestamp rather than faking recent live ticks. Quotes exceeding 72 hours are marked `STALE`. On cache retrieval, `.delayed` and `.stale` provenance is strictly preserved and never falsely marked `.cached` or `.live`.
 - **Keyless Fallback**: When an API key is not configured, Skylet falls back to open central-bank reference rates (`open.er-api.com` or `Frankfurter`), which update daily. Skylet transparently labels these as `DAILY REFERENCE`.
 
 ---

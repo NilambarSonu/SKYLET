@@ -2,6 +2,9 @@
 //  CurrencyRateService.swift
 //  SkyletCore
 //
+//  Service coordinating real-time Forex providers, reference fallbacks, request deduplication,
+//  and decimal-safe conversions.
+//
 
 import Foundation
 
@@ -73,6 +76,7 @@ public actor CurrencyRateService {
     private let primaryReferenceProvider: CurrencyRateProviding
     private let secondaryReferenceProvider: CurrencyRateProviding?
     private let cache: CurrencyRateCache
+    private let dateProvider: @Sendable () -> Date
 
     /// In-flight request deduplication map
     private var inFlightRequests: [String: Task<CurrencyRateEntry, Error>] = [:]
@@ -81,12 +85,14 @@ public actor CurrencyRateService {
         realTimeProvider: CurrencyRateProviding = TwelveDataRateProvider(),
         primaryReferenceProvider: CurrencyRateProviding = ExchangeRateAPIProvider(),
         secondaryReferenceProvider: CurrencyRateProviding? = FrankfurterRateProvider(),
-        cache: CurrencyRateCache = CurrencyRateCache.shared
+        cache: CurrencyRateCache = CurrencyRateCache.shared,
+        dateProvider: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.realTimeProvider = realTimeProvider
         self.primaryReferenceProvider = primaryReferenceProvider
         self.secondaryReferenceProvider = secondaryReferenceProvider
         self.cache = cache
+        self.dateProvider = dateProvider
     }
 
     /// Converts a source amount from one currency to another (defaulting target to INR).
@@ -96,6 +102,8 @@ public actor CurrencyRateService {
         to target: CurrencyCode = .inr,
         forceRefresh: Bool = false
     ) async throws -> CurrencyConversionResult {
+        let now = dateProvider()
+
         // 1. Identical currency short-circuit (e.g. INR to INR)
         if source == target {
             return CurrencyConversionResult(
@@ -109,13 +117,13 @@ public actor CurrencyRateService {
                 isCached: false,
                 isStale: false,
                 freshness: .live,
-                quoteTimestamp: Date(),
-                fetchTimestamp: Date()
+                quoteTimestamp: now,
+                fetchTimestamp: now
             )
         }
 
         // 2. Check fresh cache unless forced refresh
-        if !forceRefresh, let cached = await cache.get(from: source, to: target), !cached.isStale {
+        if !forceRefresh, let cached = await cache.get(from: source, to: target, asOf: now), !cached.isStale {
             let targetAmount = calculateTargetAmount(amount: amount, rate: cached.entry.rate)
             return CurrencyConversionResult(
                 sourceAmount: amount,
@@ -154,7 +162,7 @@ public actor CurrencyRateService {
         } catch {
             inFlightRequests.removeValue(forKey: deduplicationKey)
             // 4. If all network fetches failed, check if we have any cached entry (even stale)
-            if let staleCached = await cache.get(from: source, to: target) {
+            if let staleCached = await cache.get(from: source, to: target, asOf: now) {
                 let targetAmount = calculateTargetAmount(amount: amount, rate: staleCached.entry.rate)
                 return CurrencyConversionResult(
                     sourceAmount: amount,
@@ -165,8 +173,8 @@ public actor CurrencyRateService {
                     rateDateString: staleCached.entry.providerDateString,
                     providerName: staleCached.entry.providerName,
                     isCached: true,
-                    isStale: true,
-                    freshness: .stale,
+                    isStale: staleCached.isStale,
+                    freshness: staleCached.entry.freshness,
                     quoteTimestamp: staleCached.entry.quoteTimestamp,
                     fetchTimestamp: staleCached.entry.fetchTimestamp
                 )
@@ -235,5 +243,3 @@ public actor CurrencyRateService {
         return result
     }
 }
-
-

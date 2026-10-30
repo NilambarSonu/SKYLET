@@ -2,6 +2,10 @@
 //  TwelveDataRateProvider.swift
 //  SkyletCore
 //
+//  Primary real-time exchange rate provider using Twelve Data Forex API.
+//  Endpoint: GET https://api.twelvedata.com/exchange_rate?symbol=BASE/QUOTE
+//  Authentication: HTTP Header "Authorization: apikey YOUR_API_KEY"
+//
 
 import Foundation
 
@@ -14,16 +18,19 @@ public final class TwelveDataRateProvider: CurrencyRateProviding, Sendable {
     private let keychain: KeychainStoring
     private let keyAccountName: String
     private let freshnessThreshold: TimeInterval // default: 15 minutes for live quotes
+    private let dateProvider: @Sendable () -> Date
 
     public init(
         keychain: KeychainStoring = MacOSKeychainManager.shared,
         keyAccountName: String = "twelvedata_api_key",
         session: URLSession? = nil,
-        freshnessThreshold: TimeInterval = 15 * 60
+        freshnessThreshold: TimeInterval = 15 * 60,
+        dateProvider: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.keychain = keychain
         self.keyAccountName = keyAccountName
         self.freshnessThreshold = freshnessThreshold
+        self.dateProvider = dateProvider
 
         if let session {
             self.session = session
@@ -63,12 +70,13 @@ public final class TwelveDataRateProvider: CurrencyRateProviding, Sendable {
     public func fetchRate(from: CurrencyCode, to: CurrencyCode) async throws -> CurrencyRateEntry {
         // 1. Identity conversion
         if from == to {
+            let now = dateProvider()
             return CurrencyRateEntry(
                 from: from,
                 to: to,
                 rate: 1.0,
-                quoteTimestamp: Date(),
-                fetchTimestamp: Date(),
+                quoteTimestamp: now,
+                fetchTimestamp: now,
                 providerDateString: "Local (Same Currency)",
                 providerName: providerName,
                 freshness: .live,
@@ -159,10 +167,10 @@ public final class TwelveDataRateProvider: CurrencyRateProviding, Sendable {
             throw CurrencyRateError.malformedData
         }
         let quoteDate = Date(timeIntervalSince1970: TimeInterval(epoch))
-        let now = Date()
+        let now = dateProvider()
         let quoteAge = now.timeIntervalSince(quoteDate)
 
-        // 10. Determine freshness
+        // 10. Determine freshness using the unified 72-hour threshold
         let freshness: RateFreshness
         if quoteAge <= freshnessThreshold {
             freshness = .live

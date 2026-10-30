@@ -537,12 +537,266 @@ func runAllTests() async {
         assert(true, "Production cache is not contaminated by test runner")
     }
 
-    // 19. Optional Integration Test: If user configured real Twelve Data key in macOS Keychain
-    let localKeychain = MacOSKeychainManager.shared
-    if let realKey = localKeychain.get(key: "twelvedata_api_key")?.trimmingCharacters(in: .whitespacesAndNewlines),
-       !realKey.isEmpty {
-        print("  * Found real Twelve Data key in Keychain! Testing live USD/INR...")
-        let liveProvider = TwelveDataRateProvider(keychain: localKeychain)
+    // 19. Currency Freshness, Cache Provenance & Controllable Clock Verification (v1.0.1)
+    final class ControllableClock: @unchecked Sendable {
+        var currentTime: Date
+        init(initialTime: Date = Date(timeIntervalSince1970: 1730000000)) {
+            self.currentTime = initialTime
+        }
+        func advance(by seconds: TimeInterval) {
+            currentTime = currentTime.addingTimeInterval(seconds)
+        }
+    }
+
+    let clock = ControllableClock()
+    let mockSessionForClock = makeMockSession()
+    let testKeychain = InMemoryKeychainManager(initialItems: ["twelvedata_api_key": "dummy_key"])
+
+    // Test Case 1: Fresh live quote (quoteAge <= 15m) -> .live
+    let t0 = clock.currentTime
+    let quoteAge5mEpoch = Int(t0.timeIntervalSince1970) - 300 // 5m old
+    MockURLProtocol.mockResponseData = """
+    {"symbol": "USD/INR", "rate": 95.25, "timestamp": \(quoteAge5mEpoch)}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockStatusCode = 200
+    let liveQuoteProvider = TwelveDataRateProvider(
+        keychain: testKeychain,
+        session: mockSessionForClock,
+        dateProvider: { clock.currentTime }
+    )
+    do {
+        let entry = try await liveQuoteProvider.fetchRate(from: .usd, to: .inr)
+        assert(entry.freshness == .live, "Case 1: Fresh quote (age 5m <= 15m) evaluated as .live")
+    } catch {
+        assert(false, "Case 1 failed: \(error)")
+    }
+
+    // Test Case 2: Cached live quote (quoteAge <= 15m, fetchAge <= 5m) -> .cached
+    let controlledCache = CurrencyRateCache(persistToDisk: false, dateProvider: { clock.currentTime })
+    let liveCachedEntry = CurrencyRateEntry(
+        from: .usd,
+        to: .inr,
+        rate: Decimal(string: "95.25")!,
+        quoteTimestamp: t0.addingTimeInterval(-120), // quote 2m ago
+        fetchTimestamp: t0.addingTimeInterval(-120), // fetch 2m ago
+        providerDateString: "10:00:00 UTC",
+        providerName: "Twelve Data",
+        freshness: .live,
+        isDailyReference: false
+    )
+    await controlledCache.set(liveCachedEntry)
+    if let res = await controlledCache.get(from: .usd, to: .inr) {
+        assert(res.entry.freshness == .cached && !res.isStale, "Case 2: Cached live quote (age 2m) retrieved as .cached, not stale")
+    } else {
+        assert(false, "Case 2: Entry not found in cache")
+    }
+
+    // Test Case 3: Delayed quote (quoteAge > 15m && <= 72h) -> .delayed
+    let quoteAge2hEpoch = Int(t0.timeIntervalSince1970) - 7200 // 2 hours old
+    MockURLProtocol.mockResponseData = """
+    {"symbol": "USD/INR", "rate": 95.25, "timestamp": \(quoteAge2hEpoch)}
+    """.data(using: .utf8)!
+    do {
+        let entry = try await liveQuoteProvider.fetchRate(from: .usd, to: .inr)
+        assert(entry.freshness == .delayed, "Case 3: Delayed quote (age 2h > 15m && <= 72h) evaluated as .delayed")
+    } catch {
+        assert(false, "Case 3 failed: \(error)")
+    }
+
+    // Test Case 4: Cached delayed quote (quote retrieved from cache, originally delayed, fetchAge <= 5m) -> .delayed, isCached: true
+    let delayedCachedEntry = CurrencyRateEntry(
+        from: .usd,
+        to: .inr,
+        rate: Decimal(string: "95.25")!,
+        quoteTimestamp: t0.addingTimeInterval(-7200), // quote 2 hours old
+        fetchTimestamp: t0.addingTimeInterval(-60),   // fetch 1 minute ago
+        providerDateString: "08:00:00 UTC",
+        providerName: "Twelve Data",
+        freshness: .delayed,
+        isDailyReference: false
+    )
+    await controlledCache.set(delayedCachedEntry)
+    if let res = await controlledCache.get(from: .usd, to: .inr) {
+        assert(res.entry.freshness == .delayed && !res.isStale, "Case 4: Cached delayed quote strictly preserved as .delayed (never converted to .cached)")
+    } else {
+        assert(false, "Case 4: Entry not found in cache")
+    }
+
+    // Test Case 5: Stale quote (quoteAge > 72h) -> .stale
+    let quoteAge75hEpoch = Int(t0.timeIntervalSince1970) - (75 * 3600) // 75 hours old
+    MockURLProtocol.mockResponseData = """
+    {"symbol": "USD/INR", "rate": 95.25, "timestamp": \(quoteAge75hEpoch)}
+    """.data(using: .utf8)!
+    do {
+        let entry = try await liveQuoteProvider.fetchRate(from: .usd, to: .inr)
+        assert(entry.freshness == .stale, "Case 5: Stale quote (age 75h > 72h) evaluated as .stale")
+    } catch {
+        assert(false, "Case 5 failed: \(error)")
+    }
+
+    // Test Case 6: Cached stale quote (quote retrieved from cache, quoteAge > 72h) -> .stale
+    let staleCachedEntry = CurrencyRateEntry(
+        from: .usd,
+        to: .inr,
+        rate: Decimal(string: "95.25")!,
+        quoteTimestamp: t0.addingTimeInterval(-(75 * 3600)), // quote 75 hours old
+        fetchTimestamp: t0.addingTimeInterval(-30),          // fetch 30s ago
+        providerDateString: "75h ago",
+        providerName: "Twelve Data",
+        freshness: .stale,
+        isDailyReference: false
+    )
+    await controlledCache.set(staleCachedEntry)
+    if let res = await controlledCache.get(from: .usd, to: .inr) {
+        assert(res.entry.freshness == .stale && res.isStale, "Case 6: Cached stale quote retrieved strictly as .stale and isStale == true")
+    } else {
+        assert(false, "Case 6: Entry not found in cache")
+    }
+
+    // Test Case 7: Quote that was live when cached, but after advancing time past 72h becomes stale on retrieval -> .stale
+    let freshEntryForAdvancement = CurrencyRateEntry(
+        from: .eur,
+        to: .inr,
+        rate: Decimal(string: "103.50")!,
+        quoteTimestamp: clock.currentTime,
+        fetchTimestamp: clock.currentTime,
+        providerDateString: "T0",
+        providerName: "Twelve Data",
+        freshness: .live,
+        isDailyReference: false
+    )
+    await controlledCache.set(freshEntryForAdvancement)
+    clock.advance(by: 73 * 3600)
+    if let res = await controlledCache.get(from: .eur, to: .inr) {
+        assert(res.entry.freshness == .stale && res.isStale, "Case 7: Quote live when cached becomes .stale after advancing controllable clock past 72h")
+    } else {
+        assert(false, "Case 7: Entry not found in cache")
+    }
+
+    // Test Case 8: Fallback to cache on network failure: returns cached quote with accurate freshness (.stale or .delayed or .cached as determined by age, never upgraded to .live)
+    final class FailingProvider: CurrencyRateProviding, @unchecked Sendable {
+        let providerName = "Failing Provider"
+        func fetchRate(from: CurrencyCode, to: CurrencyCode) async throws -> CurrencyRateEntry {
+            throw CurrencyRateError.networkUnavailable
+        }
+    }
+    let networkFailClock = ControllableClock()
+    let networkFailCache = CurrencyRateCache(persistToDisk: false, dateProvider: { networkFailClock.currentTime })
+    let networkFailService = CurrencyRateService(
+        realTimeProvider: FailingProvider(),
+        primaryReferenceProvider: FailingProvider(),
+        secondaryReferenceProvider: nil,
+        cache: networkFailCache,
+        dateProvider: { networkFailClock.currentTime }
+    )
+
+    // Sub-case 8A: Cache has fresh live quote, network fails -> result is .cached, isCached == true
+    let entry8A = CurrencyRateEntry(
+        from: .usd,
+        to: .inr,
+        rate: Decimal(string: "95.20")!,
+        quoteTimestamp: networkFailClock.currentTime.addingTimeInterval(-100),
+        fetchTimestamp: networkFailClock.currentTime.addingTimeInterval(-100),
+        providerDateString: "100s ago",
+        providerName: "Twelve Data",
+        freshness: .live,
+        isDailyReference: false
+    )
+    await networkFailCache.set(entry8A)
+    do {
+        let res8A = try await networkFailService.convert(amount: 10, from: .usd, to: .inr, forceRefresh: true)
+        assert(res8A.freshness == .cached && res8A.isCached && !res8A.isStale, "Case 8A: Fallback to cached live quote returns .cached, isCached == true, never .live")
+    } catch {
+        assert(false, "Case 8A failed: \(error)")
+    }
+
+    // Sub-case 8B: Cache has delayed quote (20h old), network fails -> result remains .delayed, isCached == true
+    let entry8B = CurrencyRateEntry(
+        from: .cad,
+        to: .inr,
+        rate: Decimal(string: "68.50")!,
+        quoteTimestamp: networkFailClock.currentTime.addingTimeInterval(-20 * 3600),
+        fetchTimestamp: networkFailClock.currentTime.addingTimeInterval(-60),
+        providerDateString: "20h ago",
+        providerName: "Twelve Data",
+        freshness: .delayed,
+        isDailyReference: false
+    )
+    await networkFailCache.set(entry8B)
+    do {
+        let res8B = try await networkFailService.convert(amount: 10, from: .cad, to: .inr, forceRefresh: true)
+        assert(res8B.freshness == .delayed && res8B.isCached, "Case 8B: Fallback to cached delayed quote preserves .delayed, never upgraded to .cached or .live")
+    } catch {
+        assert(false, "Case 8B failed: \(error)")
+    }
+
+    // Sub-case 8C: Cache has stale quote (80h old), network fails -> result is .stale, isStale == true
+    let entry8C = CurrencyRateEntry(
+        from: .aud,
+        to: .inr,
+        rate: Decimal(string: "60.00")!,
+        quoteTimestamp: networkFailClock.currentTime.addingTimeInterval(-80 * 3600),
+        fetchTimestamp: networkFailClock.currentTime.addingTimeInterval(-80 * 3600),
+        providerDateString: "80h ago",
+        providerName: "Twelve Data",
+        freshness: .stale,
+        isDailyReference: false
+    )
+    await networkFailCache.set(entry8C)
+    do {
+        let res8C = try await networkFailService.convert(amount: 10, from: .aud, to: .inr, forceRefresh: true)
+        assert(res8C.freshness == .stale && res8C.isCached && res8C.isStale, "Case 8C: Fallback to cached stale quote strictly marked .stale with isStale == true")
+    } catch {
+        assert(false, "Case 8C failed: \(error)")
+    }
+
+    // Test Case 9: Daily reference fallback: returns .dailyReference (quoteAge <= 12h) or .stale (quoteAge > 12h)
+    let refClock = ControllableClock()
+    let refCache = CurrencyRateCache(persistToDisk: false, dateProvider: { refClock.currentTime })
+
+    // 9A: quoteAge = 4 hours <= 12h
+    let freshRefEntry = CurrencyRateEntry(
+        from: .gbp,
+        to: .inr,
+        rate: Decimal(string: "123.40")!,
+        quoteTimestamp: refClock.currentTime.addingTimeInterval(-4 * 3600),
+        fetchTimestamp: refClock.currentTime.addingTimeInterval(-1800),
+        providerDateString: "Today",
+        providerName: "ECB Reference",
+        freshness: .dailyReference,
+        isDailyReference: true
+    )
+    await refCache.set(freshRefEntry)
+    if let refResultA = await refCache.get(from: .gbp, to: .inr) {
+        assert(refResultA.entry.freshness == .dailyReference && !refResultA.isStale, "Case 9A: Daily reference (age 4h <= 12h) returns .dailyReference and isStale == false")
+    } else {
+        assert(false, "Case 9A: Entry not found")
+    }
+
+    // 9B: quoteAge = 14 hours > 12h
+    let staleRefEntry = CurrencyRateEntry(
+        from: .sgd,
+        to: .inr,
+        rate: Decimal(string: "71.20")!,
+        quoteTimestamp: refClock.currentTime.addingTimeInterval(-14 * 3600),
+        fetchTimestamp: refClock.currentTime.addingTimeInterval(-1800),
+        providerDateString: "Yesterday",
+        providerName: "ECB Reference",
+        freshness: .dailyReference,
+        isDailyReference: true
+    )
+    await refCache.set(staleRefEntry)
+    if let refResultB = await refCache.get(from: .sgd, to: .inr) {
+        assert(refResultB.entry.freshness == .stale && refResultB.isStale, "Case 9B: Daily reference (age 14h > 12h) returns .stale and isStale == true")
+    } else {
+        assert(false, "Case 9B: Entry not found")
+    }
+
+    // 20. Optional Integration Test: If user configured TWELVEDATA_API_KEY via environment
+    if let envKey = ProcessInfo.processInfo.environment["TWELVEDATA_API_KEY"], !envKey.isEmpty {
+        print("  * Found TWELVEDATA_API_KEY in environment! Testing live USD/INR...")
+        let envKeychain = InMemoryKeychainManager(initialItems: ["twelvedata_api_key": envKey])
+        let liveProvider = TwelveDataRateProvider(keychain: envKeychain)
         do {
             let liveEntry = try await liveProvider.fetchRate(from: .usd, to: .inr)
             print("  ✓ Real Twelve Data Live USD/INR: 1 USD = ₹\(liveEntry.rate) at \(liveEntry.providerDateString)")
