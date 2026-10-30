@@ -64,7 +64,7 @@ public struct SettingsView: View {
                 .font(.system(size: 12, design: .monospaced))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(SkyletTheme.glassBackground)
+                .background(SkyletTheme.cardFill)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -199,7 +199,7 @@ public struct SettingsView: View {
             .foregroundStyle(SkyletTheme.tertiaryText)
         }
         .padding(12)
-        .background(SkyletTheme.midnightBackground)
+        .background(SkyletTheme.midnightSurface)
         .onAppear {
             loadExistingKeyStatus()
         }
