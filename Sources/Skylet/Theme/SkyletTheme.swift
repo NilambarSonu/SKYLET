@@ -22,6 +22,26 @@ public enum SkyletTheme {
     /// Soft sky highlight for subtle backgrounds and badges: #7DD3FC
     public static let lightSky = Color(red: 0.49, green: 0.83, blue: 0.99)
 
+    // MARK: - Solar Instrument Palette (Animated Sun & Focus Identity)
+
+    /// Primary radiant solar gold (#FFC644)
+    public static let solarGold = Color(red: 1.0, green: 0.776, blue: 0.267)
+
+    /// Deep energetic solar core amber (#FF8F1C)
+    public static let solarCore = Color(red: 1.0, green: 0.561, blue: 0.110)
+
+    /// Warm solar flare tint (#FFE082)
+    public static let solarFlare = Color(red: 1.0, green: 0.878, blue: 0.510)
+
+    /// Soft radiant solar aura for ambient glow
+    public static let solarGlow = Color(red: 1.0, green: 0.82, blue: 0.35).opacity(0.28)
+
+    /// Active beam highlight color
+    public static let solarRayActive = Color(red: 1.0, green: 0.80, blue: 0.30)
+
+    /// Dormant / inactive beam track color
+    public static let solarRayTrack = Color.white.opacity(0.10)
+
     /// Midnight base surface: #0B1220
     public static let midnightSurface = Color(red: 0.043, green: 0.071, blue: 0.125)
 
@@ -122,6 +142,28 @@ public enum SkyletTheme {
 
     /// Micro font for badges and tags
     public static let microFont = Font.system(size: 9, weight: .medium)
+
+    /// Restrained uppercase session status badge (READY, FOCUSING, PAUSED, COMPLETED)
+    public static let statusBadgeFont = Font.system(size: 10, weight: .bold, design: .rounded)
+
+    /// Secondary focus timer subtitle font
+    public static let sessionSubtitleFont = Font.system(size: 11, weight: .medium, design: .rounded)
+
+    // MARK: - Native DroppyKit Geometry & Continuous Radii
+
+    /// Standard shelf widget corner radius (18pt continuous)
+    public static let shelfCornerRadius: CGFloat = DroppyShellMetrics.shelfWidgetCornerRadius
+
+    /// Full-bleed island shelf widget corner radius (26.5pt continuous)
+    public static let shelfFullBleedCornerRadius: CGFloat = DroppyShellMetrics.shelfFullBleedCornerRadius
+
+    /// Standard container shape for the widget
+    public static func shelfShape(usesIslandCurvature: Bool = false) -> RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: usesIslandCurvature ? shelfFullBleedCornerRadius : shelfCornerRadius,
+            style: .continuous
+        )
+    }
 
     // MARK: - Micro-Animation Timings
 

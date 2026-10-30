@@ -54,13 +54,45 @@ public enum FocusTimerStatus: Equatable, Sendable {
         case .completed: return 0
         }
     }
+
+    public var actionButtonTitle: String {
+        switch self {
+        case .idle: return "Start Focus"
+        case .running: return "Pause"
+        case .paused: return "Resume"
+        case .completed: return "Start Again"
+        }
+    }
+
+    public var actionButtonIcon: String {
+        switch self {
+        case .idle: return "play.fill"
+        case .running: return "pause.fill"
+        case .paused: return "play.fill"
+        case .completed: return "arrow.clockwise"
+        }
+    }
+
+    public var statusBadgeText: String {
+        switch self {
+        case .idle: return "READY"
+        case .running: return "FOCUSING"
+        case .paused: return "PAUSED"
+        case .completed: return "COMPLETED"
+        }
+    }
 }
 
 /// Deadline-based focus timer engine ensuring zero drift during UI suspension or scheduling delays.
 @MainActor
 public final class FocusTimerEngine: ObservableObject {
+    public static let sessionCompletedNotification = Notification.Name("SkyletFocusSessionCompletedNotification")
+
     @Published public private(set) var status: FocusTimerStatus = .idle
     @Published public private(set) var isDisplayAwake: Bool = false
+
+    /// Closure invoked exactly once upon natural session completion.
+    public var onCompletion: ((TimeInterval) -> Void)?
 
     private let powerController: PowerAssertionControlling
     private var deadline: Date?
@@ -141,8 +173,15 @@ public final class FocusTimerEngine: ObservableObject {
 
         if remaining <= 0.05 {
             // Natural completion
+            let finishedDuration = totalDuration
             cleanup()
-            status = .completed(totalDuration: totalDuration)
+            status = .completed(totalDuration: finishedDuration)
+            NotificationCenter.default.post(
+                name: Self.sessionCompletedNotification,
+                object: self,
+                userInfo: ["duration": finishedDuration]
+            )
+            onCompletion?(finishedDuration)
         } else {
             status = .running(totalDuration: totalDuration, remaining: remaining, progress: progress)
             isDisplayAwake = powerController.isDisplayAwakeActive

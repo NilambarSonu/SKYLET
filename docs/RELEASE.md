@@ -27,18 +27,18 @@ Skylet.droplet/
 Releases are automated via GitHub Actions in [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 
 ### Triggering a Release
-Pushing a semantic version tag (e.g. `v1.0.1`) automatically starts the release pipeline:
+Pushing a semantic version tag (e.g. `v1.1.0`) automatically starts the release pipeline:
 
 ```bash
-git tag -a v1.0.1 -m "Release v1.0.1"
-git push origin v1.0.1
+git tag -a v1.1.0 -m "Release v1.1.0"
+git push origin v1.1.0
 ```
 
 ### Automated Steps:
 1. **Release Gate Pre-Validation**: Verifies tag semantic format (`^v[0-9]+\.[0-9]+\.[0-9]+$`), checks tag commit is reachable on `origin/main`, and ensures tag version matches `droplet.json`.
 2. **Toolchain Setup**: Configures macOS 15 runner with Xcode 16 and Swift 6.
 3. **DroppyKit SDK Resolution**: Clones official DroppyKit SDK pinned to commit `4eee564d5d5896137ecc2b4e0df50975cff5a4c6` (v1.20.1) via `ci/setup-droppykit.sh` and verifies patch application.
-4. **Automated Unit Testing**: Runs 109 unit tests in `SkyletTestsRunner`. Fails immediately if any test fails.
+4. **Automated Unit Testing**: Runs 133 unit tests in `SkyletTestsRunner`. Fails immediately if any test fails.
 5. **Universal Binary Compilation**: Invokes `droppykit build --arch universal` to generate dual-slice Mach-O binaries (`arm64` Apple Silicon + `x86_64` Intel).
 6. **Manifest & Linkage Validation**: Runs `droppykit validate --no-submission` checking symbol imports, framework linkage, and surface constraints.
 7. **Headless Harness Verification**: Executes `ci/run-harness-checks.sh` validating screenshot generation and JSON report output.

@@ -56,6 +56,7 @@ public struct SkyletRootView: View {
         }
         .padding(context.contentInsets)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .clipShape(SkyletTheme.shelfShape(usesIslandCurvature: context.usesIslandCurvature))
         .animation(SkyletTheme.quickAnimation, value: droplet.selectedMode)
     }
 
@@ -64,9 +65,9 @@ public struct SkyletRootView: View {
     private var headerRow: some View {
         HStack(spacing: DroppySpacing.xsm) {
             // App symbol and title
-            Image(systemName: "sparkles")
+            Image(systemName: droplet.selectedMode == .focus ? "sun.max.fill" : "sparkles")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(SkyletTheme.skyBlue)
+                .foregroundStyle(droplet.selectedMode == .focus ? SkyletTheme.solarGold : SkyletTheme.skyBlue)
 
             Text("Skylet")
                 .font(.system(size: 12, weight: .semibold))
@@ -78,6 +79,8 @@ public struct SkyletRootView: View {
             if !context.isCompact {
                 HStack(spacing: 2) {
                     ForEach(SkyletMode.allCases) { mode in
+                        let isSelected = droplet.selectedMode == mode
+                        let accentColor: Color = mode == .focus ? SkyletTheme.solarGold : SkyletTheme.skyBlue
                         Button {
                             withAnimation(SkyletTheme.quickAnimation) {
                                 droplet.selectedMode = mode
@@ -87,12 +90,12 @@ public struct SkyletRootView: View {
                                 Image(systemName: mode.iconName)
                                     .font(.system(size: 9))
                                 Text(mode.rawValue)
-                                    .font(.system(size: 10, weight: droplet.selectedMode == mode ? .semibold : .regular))
+                                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
                             }
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
-                            .background(droplet.selectedMode == mode ? SkyletTheme.skyBlue.opacity(0.22) : Color.clear)
-                            .foregroundStyle(droplet.selectedMode == mode ? SkyletTheme.skyBlue : SkyletTheme.secondaryText)
+                            .background(isSelected ? accentColor.opacity(0.22) : Color.clear)
+                            .foregroundStyle(isSelected ? accentColor : SkyletTheme.secondaryText)
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)

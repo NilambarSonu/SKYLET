@@ -3,7 +3,6 @@
 .DS_Store
 *.xcodeproj
 DerivedData/
-shots/
 .release/
 .release*/
 .mcp.json

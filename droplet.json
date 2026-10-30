@@ -1,9 +1,9 @@
 {
   "id": "skylet",
   "name": "Skylet",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "summary": "Currency intelligence and focus timer for macOS",
-  "description": "Skylet brings instant currency conversion to Indian Rupees (INR) and a focused display-awake timer directly to Droppy.\n\nQuickly convert prices, international subscriptions, and invoices from pasted or typed amounts, and keep your display awake during deep focus or reading sessions without touching global System Settings.",
+  "description": "Skylet brings instant currency conversion to Indian Rupees (INR) and an elegant solar focus timer directly to Droppy.\n\nQuickly convert prices, international subscriptions, and invoices from pasted or typed amounts, and keep your display awake during deep focus or reading sessions with a custom solar instrument.",
   "category": "Productivity",
   "kit": {
     "abi": 1,
@@ -30,7 +30,11 @@
     "repository": "https://github.com/NilambarSonu/SKYLET",
     "license": "MIT"
   },
-  "screenshots": [],
+  "screenshots": [
+    "currency_main.png",
+    "focus_running.png",
+    "focus_idle.png"
+  ],
   "keywords": [
     "currency",
     "converter",

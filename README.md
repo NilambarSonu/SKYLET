@@ -1,11 +1,11 @@
 # Skylet ✦
 
 <p align="center">
-  <img src="Skylet.icon/icon_256x256.png" alt="Skylet Icon" width="96" height="96" />
+  <img src="shots/icon_master_1024.png" alt="Skylet Icon" width="108" height="108" />
 </p>
 
 <p align="center">
-  <strong>A premium native macOS DroppyKit utility featuring live currency conversion and a distraction-free Focus Timer.</strong>
+  <strong>A premium native macOS DroppyKit utility featuring live currency conversion and an ambient solar Focus Timer.</strong>
 </p>
 
 <p align="center">
@@ -47,16 +47,19 @@ Skylet lives directly inside [Droppy](https://getdroppy.app)’s Dynamic Island 
 - **Clipboard Workflow**: Instant conversion of amounts on your clipboard with one click — zero continuous background clipboard snooping.
 - **One-Click Copy**: Copies clean formatted summary (e.g. `100.00 USD = ₹8,350.00 (Illustrative example; real quotes use live market rate)`) with immediate in-place checkmark feedback.
 
-### ⏱️ Focus Timer & Display-Awake Instrument
-- **Zero-Drift Monotonic Deadline**: System-clock deadline tracking ensures the countdown never drifts if the UI is hidden or backgrounded.
+### ⏱️ Focus Timer & Solar Instrument
+- **Custom Solar Sun Instrument (`SolarSunView`)**: An animated visual instrument replacing anxious numeric countdowns. 12 radial solar beams progressively recede clockwise as time elapses, backed by an energetic amber core and celestial horizon arc.
+- **Instant Reactive Controls**: Action button immediately reacts to user interactions (`Start Focus` ➔ `Pause` ➔ `Resume` ➔ `Start Again`), paired with an immediate secondary `Reset` button.
+- **Zero-Drift Monotonic Deadline**: System-clock deadline tracking ensures time calculation never drifts even if the Mac sleeps or the UI is hidden.
 - **Native Power Assertion**: Uses Apple's public `ProcessInfo.beginActivity(options: .idleDisplaySleepDisabled)` API to prevent idle screen sleep without administrator rights, terminal scripts, or mouse jiggling.
 - **Strict Assertion Lifecycle**: Automatically releases display-awake assertions on pause, cancellation, session completion, or droplet deactivation.
-- **Calibrated Duration Presets**: Quick-select pills for 15m, 30m, 45m, 60m, 120m, plus custom duration entry.
-- **Restrained Circular Progress Gauge**: Custom 52pt progress ring with subtle track, sky-blue progress stroke, and session status glyphs (`timer`, `sun.max.fill`, `pause.fill`, `checkmark`).
+- **Calibrated Duration Presets**: Quick-select chips for 15m, 25m, 45m, 60m, 120m, plus custom minutes entry.
 
 ### 🏝️ Dynamic Island & Shelf Integration
+- **Continuous Notch Curvature**: Perfectly shaped with `18pt` shelf and `26.5pt` island radii, eliminating protruding sharp corners.
+- **In-Place Currency Picker Overlay**: Layered selection overlay replaces rectangular AppKit modal sheets, maintaining seamless curvature and dark-chrome integration.
 - **Dual Surface Layouts**: Full interactive canvas in Solo shelf layout (420pt) and compact glanceable canvas in Paired shelf mode (210pt).
-- **Dynamic Island / Notch Live Activity**: Publishes running countdown in the notch wings during active focus sessions, and live converted INR amounts when idle.
+- **Dynamic Island / Notch Live Activity**: Publishes a mini 18pt Solar Sun and compact remaining time in the notch Live Activity wings during active focus sessions.
 - **Native Droppy Settings Pane**: Accessible via **Droppy Settings ➔ Skylet** with masked key input, latency tester, and quota notices.
 
 ---
@@ -137,13 +140,26 @@ SKYLET
 │   ├── Skylet/                      # DroppyKit UI & Presentation layer
 │   │   ├── Theme/                   # SkyletTheme design tokens (AdaptiveColors, DroppySpacing)
 │   │   └── UI/                      # CurrencyView, CurrencySelectorView, FocusTimerView, SettingsView
-│   └── SkyletTestsRunner/           # 97 automated unit tests
+│   └── SkyletTestsRunner/           # 133 automated unit tests
 ├── droplet.json                     # DroppyKit manifest (ABI 1, minAPI 1.6.0)
 └── .github/workflows/               # CI build & automated release pipelines
 ```
 
+### Visual Preview & Screenshots
+
+<p align="center">
+  <img src="shots/currency_main.png" alt="Currency Intelligence" width="300" />
+  &nbsp;&nbsp;
+  <img src="shots/focus_running.png" alt="Focus Timer Running" width="300" />
+</p>
+<p align="center">
+  <img src="shots/focus_idle.png" alt="Focus Timer Ready" width="300" />
+  &nbsp;&nbsp;
+  <img src="shots/focus_completed.png" alt="Focus Timer Completed" width="300" />
+</p>
+
 ### Run Automated Tests Locally
-Skylet includes 97 automated unit tests covering financial arithmetic precision, parser edge cases, Twelve Data HTTP status codes, Keychain security, and power assertion lifecycles:
+Skylet includes 133 automated unit tests covering financial arithmetic precision, parser edge cases, Twelve Data HTTP status codes, Keychain security, all 16 focus timer lifecycle requirements, and UI button state transitions:
 
 ```bash
 swift run SkyletTestsRunner
@@ -153,7 +169,7 @@ swift run SkyletTestsRunner
 Validate the bundle using DroppyKit's official verification tool:
 
 ```bash
-droppykit validate --no-submission
+./.build/checkouts/droppykit/Scripts/droppykit validate --no-submission
 ```
 
 ---
