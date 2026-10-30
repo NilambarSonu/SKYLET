@@ -4,21 +4,26 @@
 
 Skylet is a lightweight, beautifully crafted native macOS droplet for [Droppy](https://getdroppy.app). It lives directly inside Droppy’s Dynamic Island and shelf, delivering two focused productivity tools without requiring an account, API key, background daemon, or system-wide setting changes:
 
-1. **Currency Intelligence**: Quickly understand foreign-currency amounts in Indian Rupees (INR) while researching software subscriptions, international products, freelance payments, and technical documentation.
+1. **Currency Intelligence**: Real-time foreign exchange conversion to Indian Rupees (INR) using live quotes from Twelve Data Forex API with fallback reference providers, keychain-secured API key management, and instant clipboard import.
 2. **Focus Timer**: Keep your Mac’s display awake during deep study, reading, or coding sessions without modifying global macOS System Settings.
 
 ---
 
 ## Features
 
-### 🪙 Currency Intelligence
+### 🪙 Currency Intelligence & Real-Time FX
+- **Twelve Data Real-Time Forex API**: High-frequency real-time quotes for USD/INR, EUR/INR, GBP/INR, and over 1,500 currency pairs.
+- **Secure macOS Keychain API Key Storage**: Stores your personal Twelve Data API key directly in Apple Keychain (`kSecClassGenericPassword`). Never logged, never shared, and never committed to GitHub.
+- **Honest Provenance & Freshness Badges**: Rates explicitly indicate whether they are `LIVE` (verified recent quote), `DELAYED` (market closed / delayed), `CACHED` (short 5m pair cache), or `DAILY REFERENCE` (fallback).
 - **Intelligent Local Parsing**: Paste or type amounts like `$25`, `€49.99`, `100 USD`, `25 euros`, `¥5000`, `AED 100`, or `₹100`.
 - **Ambiguous Symbol Protection**: Never silently guesses ambiguous symbols. An input of `$25` gracefully offers candidate selectors (`USD`, `CAD`, `AUD`, `SGD`, etc.), and `¥5000` distinguishes between `JPY` and `CNY`.
-- **Decimal-Safe Financial Arithmetic**: Calculations use pure Swift `Decimal` to avoid binary floating-point roundoff errors.
-- **Keyless Live HTTPS Exchange Rates**: Powered by public daily reference rates from [ExchangeRate-API](https://open.er-api.com) and [Frankfurter (ECB)](https://api.frankfurter.dev).
+- **Decimal-Safe Financial Arithmetic**: Calculations use pure Swift `Decimal` (`NSDecimalMultiply`) to avoid binary floating-point roundoff errors.
+- **Keyless Fallback Providers**: Seamless fallback to [ExchangeRate-API](https://open.er-api.com) and [Frankfurter (ECB)](https://api.frankfurter.dev) if an API key is unconfigured or rate limited.
 - **Offline & Stale-Rate Resilience**: Actor-isolated caching serves cached rates with an honest stale notice when offline.
 - **Explicit Clipboard Workflow**: Read clipboard content only upon clicking the explicit **Paste** button — no continuous background clipboard polling.
 - **One-Click Copy & Currency Swap**: Copy the formatted result (`₹2,380.50`) with immediate visual confirmation, or swap source and target currencies.
+- **Live Dynamic Island Display**: Shows latest converted INR amount right on the notch when Focus Timer is idle.
+- **Dedicated Settings Pane**: Configure and test your Twelve Data API key in Droppy Settings or right in the widget with live latency feedback.
 
 ### ⏱️ Focus Timer & Display-Awake Mode
 - **Zero-Drift Countdown**: Deadline-based timer model ensures countdown never drifts if the UI is hidden or the system experiences scheduling delays.
@@ -53,10 +58,18 @@ Skylet adheres strictly to the official [DroppyKit Design Guidelines](https://ge
 ## Building & Verification
 
 ### 1. Run Automated Unit Tests (Locally)
-Skylet includes 65 automated tests covering parsing, arithmetic precision, cache behavior, deadline accuracy, and power assertion lifecycles:
+Skylet includes 97 automated tests covering parsing, arithmetic precision, Twelve Data real-time integration, Keychain security, cache behavior, deadline accuracy, and power assertion lifecycles:
 
 ```bash
 swift run SkyletTestsRunner
+```
+
+Expected output:
+```text
+==================================================
+TEST RESULTS: 97 passed, 0 failed
+==================================================
+ALL TESTS PASSED SUCCESSFULLY!
 ```
 
 ### 2. Validate with DroppyKit

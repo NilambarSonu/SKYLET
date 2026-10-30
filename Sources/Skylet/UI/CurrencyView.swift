@@ -177,9 +177,9 @@ public struct CurrencyView: View {
                         .help("Swap source and target currencies")
                     }
 
-                    // Exchange rate line, provider timestamp and live refresh button
-                    HStack(spacing: 6) {
-                        Text(CurrencyFormatter.formatRate(from: result.sourceCurrency, to: result.targetCurrency, rate: result.rate))
+                    // Exchange rate line, provenance, honest freshness badge, and live refresh button
+                    HStack(spacing: 5) {
+                        Text(CurrencyFormatter.formatRateCompact(from: result.sourceCurrency, to: result.targetCurrency, rate: result.rate))
                             .font(SkyletTheme.captionFont)
                             .monospacedDigit()
                             .foregroundStyle(SkyletTheme.secondaryText)
@@ -188,15 +188,15 @@ public struct CurrencyView: View {
                             .font(SkyletTheme.captionFont)
                             .foregroundStyle(SkyletTheme.tertiaryText)
 
-                        if result.isStale {
-                            Text("Offline · Cached (\(result.rateDateString))")
-                                .font(SkyletTheme.captionFont)
-                                .foregroundStyle(Color.orange)
-                        } else {
-                            Text("\(result.providerName) · \(result.rateDateString)")
-                                .font(SkyletTheme.captionFont)
-                                .foregroundStyle(SkyletTheme.tertiaryText)
-                        }
+                        // Freshness indicator dot
+                        Circle()
+                            .fill(freshnessColor(for: result.freshness))
+                            .frame(width: 5, height: 5)
+
+                        Text(result.formattedSubtext)
+                            .font(SkyletTheme.captionFont)
+                            .foregroundStyle(freshnessTextColor(for: result.freshness))
+                            .lineLimit(1)
 
                         Button {
                             if let amt = detectedAmount {
@@ -209,6 +209,18 @@ public struct CurrencyView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Fetch live exchange rate from network")
+
+                        if result.freshness == .dailyReference && droplet.keychain.get(key: "twelvedata_api_key") == nil {
+                            Button {
+                                droplet.selectedMode = .settings
+                            } label: {
+                                Image(systemName: "gearshape")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(SkyletTheme.secondaryText)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Configure Twelve Data API Key for real-time rates")
+                        }
                     }
                 }
                 .padding(.top, 2)
@@ -228,6 +240,13 @@ public struct CurrencyView: View {
                     }
                     .font(SkyletTheme.captionFont)
                     .foregroundStyle(SkyletTheme.skyBlue)
+                    .buttonStyle(.plain)
+
+                    Button("Settings") {
+                        droplet.selectedMode = .settings
+                    }
+                    .font(SkyletTheme.captionFont)
+                    .foregroundStyle(SkyletTheme.secondaryText)
                     .buttonStyle(.plain)
                 }
                 .padding(.vertical, 4)
@@ -262,10 +281,16 @@ public struct CurrencyView: View {
                     .monospacedDigit()
                     .foregroundStyle(SkyletTheme.skyBlue)
                     .lineLimit(1)
-                Text(formatSource(result))
-                    .font(SkyletTheme.captionFont)
-                    .foregroundStyle(SkyletTheme.secondaryText)
-                    .lineLimit(1)
+
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(freshnessColor(for: result.freshness))
+                        .frame(width: 4, height: 4)
+                    Text(result.formattedSubtext)
+                        .font(SkyletTheme.captionFont)
+                        .foregroundStyle(SkyletTheme.secondaryText)
+                        .lineLimit(1)
+                }
             } else {
                 Button {
                     importFromClipboard()
@@ -279,6 +304,25 @@ public struct CurrencyView: View {
                 }
                 .buttonStyle(.plain)
             }
+        }
+    }
+
+    private func freshnessColor(for freshness: RateFreshness) -> Color {
+        switch freshness {
+        case .live: return Color.green
+        case .delayed: return Color.yellow
+        case .cached: return Color.gray
+        case .dailyReference: return Color.blue.opacity(0.8)
+        case .stale: return Color.orange
+        case .unavailable: return Color.red
+        }
+    }
+
+    private func freshnessTextColor(for freshness: RateFreshness) -> Color {
+        switch freshness {
+        case .stale: return Color.orange
+        case .unavailable: return Color.red
+        default: return SkyletTheme.tertiaryText
         }
     }
 

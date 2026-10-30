@@ -16,7 +16,8 @@
   ],
   "surfaces": [
     "shelf-widget",
-    "live-activity"
+    "live-activity",
+    "settings-pane"
   ],
   "icon": "Skylet.icon",
   "creator": {

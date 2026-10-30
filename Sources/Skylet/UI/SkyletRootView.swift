@@ -9,6 +9,7 @@ import DroppyKit
 public enum SkyletMode: String, CaseIterable, Identifiable {
     case currency = "Currency"
     case focus = "Focus"
+    case settings = "Settings"
 
     public var id: String { rawValue }
 
@@ -16,6 +17,7 @@ public enum SkyletMode: String, CaseIterable, Identifiable {
         switch self {
         case .currency: return "indianrupeesign.circle.fill"
         case .focus: return "timer"
+        case .settings: return "gearshape.fill"
         }
     }
 }
@@ -35,10 +37,13 @@ public struct SkyletRootView: View {
             headerRow
 
             // Content branching on selected mode and compactness
-            if droplet.selectedMode == .currency {
+            switch droplet.selectedMode {
+            case .currency:
                 CurrencyView(droplet: droplet, isCompact: context.isCompact)
-            } else {
+            case .focus:
                 FocusTimerView(droplet: droplet, isCompact: context.isCompact)
+            case .settings:
+                SettingsView(droplet: droplet)
             }
 
             Spacer(minLength: 0)

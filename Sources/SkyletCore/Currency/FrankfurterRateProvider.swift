@@ -86,9 +86,11 @@ public final class FrankfurterRateProvider: CurrencyRateProviding, Sendable {
             from: from,
             to: to,
             rate: decimalRate,
-            timestamp: Date(),
-            providerDateString: decoded.date,
+            quoteTimestamp: Date(),
+            fetchTimestamp: Date(),
+            providerDateString: "\(decoded.date) (ECB)",
             providerName: providerName,
+            freshness: .dailyReference,
             isDailyReference: true
         )
     }

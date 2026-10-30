@@ -21,13 +21,23 @@ public final class SkyletDroplet: NSObject, ObservableObject, Droplet {
 
     public let timerEngine: FocusTimerEngine
     public let rateService: CurrencyRateService
+    public let keychain: KeychainStoring
 
     @Published public var selectedMode: SkyletMode = .currency
     @Published public private(set) var latestConversion: CurrencyConversionResult?
 
-    public override init() {
+    public init(
+        keychain: KeychainStoring = MacOSKeychainManager.shared,
+        rateService: CurrencyRateService? = nil
+    ) {
         self.timerEngine = FocusTimerEngine()
-        self.rateService = CurrencyRateService()
+        self.keychain = keychain
+        self.rateService = rateService ?? CurrencyRateService(
+            realTimeProvider: TwelveDataRateProvider(keychain: keychain),
+            primaryReferenceProvider: ExchangeRateAPIProvider(),
+            secondaryReferenceProvider: FrankfurterRateProvider(),
+            cache: CurrencyRateCache.shared
+        )
         super.init()
     }
 
@@ -189,6 +199,20 @@ extension SkyletDroplet: LiveActivityProviding {
 
     private var currentCountdownText: String {
         FocusTimerEngine.formatCountdown(timerEngine.status.remainingSeconds)
+    }
+}
+
+// MARK: - SettingsPaneProviding
+
+extension SkyletDroplet: SettingsPaneProviding {
+    public func makeSettingsPane(context: SettingsPaneContext) -> AnyView {
+        AnyView(SettingsView(droplet: self))
+    }
+
+    public var settingsSearchEntries: [SettingsSearchEntry] {
+        [
+            SettingsSearchEntry(title: "Twelve Data API Key", keywords: ["currency", "twelve data", "forex", "key", "inr"])
+        ]
     }
 }
 

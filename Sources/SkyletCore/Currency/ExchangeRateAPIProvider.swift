@@ -92,9 +92,11 @@ public final class ExchangeRateAPIProvider: CurrencyRateProviding, Sendable {
             from: from,
             to: to,
             rate: decimalRate,
-            timestamp: Date(),
-            providerDateString: decoded.time_last_update_utc ?? "Latest",
+            quoteTimestamp: Date(),
+            fetchTimestamp: Date(),
+            providerDateString: decoded.time_last_update_utc ?? "Daily reference",
             providerName: providerName,
+            freshness: .dailyReference,
             isDailyReference: true
         )
     }

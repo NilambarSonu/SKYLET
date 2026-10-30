@@ -50,6 +50,21 @@ public enum CurrencyFormatter {
         return "1 \(from.rawValue) = \(rateStr) \(to.rawValue)"
     }
 
+    /// Formats an exchange rate pair compactly, e.g. "1 USD = ₹95.24".
+    public static func formatRateCompact(from: CurrencyCode, to: CurrencyCode, rate: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 4
+        formatter.locale = usLocale
+
+        let rateStr = formatter.string(from: rate as NSDecimalNumber) ?? "\(rate)"
+        if to == .inr {
+            return "1 \(from.rawValue) = ₹\(rateStr)"
+        }
+        return "1 \(from.rawValue) = \(rateStr) \(to.rawValue)"
+    }
+
     /// Returns a clean copyable string representing the conversion result.
     public static func copyableSummary(
         fromAmount: Decimal,

@@ -9,13 +9,17 @@ import Foundation
 public actor CurrencyRateCache {
     public static let shared = CurrencyRateCache()
 
-    /// Standard TTL of 12 hours for daily reference rates
-    private let ttl: TimeInterval
+    /// Default live quote TTL: 5 minutes (300 seconds) to conserve API quotas
+    public static let defaultLiveQuoteTTL: TimeInterval = 300
+    /// Reference rate TTL: 12 hours (43200 seconds)
+    public static let defaultReferenceRateTTL: TimeInterval = 12 * 3600
+    /// Maximum stale threshold: 24 hours
+    public static let defaultMaxStaleThreshold: TimeInterval = 24 * 3600
+
     private var entries: [String: CurrencyRateEntry]
     private let fileURL: URL?
 
-    public init(ttl: TimeInterval = 12 * 3600, persistToDisk: Bool = true) {
-        self.ttl = ttl
+    public init(persistToDisk: Bool = true) {
         if persistToDisk, let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
             let skyletDir = cacheDir.appendingPathComponent("Skylet", isDirectory: true)
             try? FileManager.default.createDirectory(at: skyletDir, withIntermediateDirectories: true)
@@ -32,7 +36,14 @@ public actor CurrencyRateCache {
         "\(from.rawValue)_\(to.rawValue)"
     }
 
-    public func get(from: CurrencyCode, to: CurrencyCode) -> (entry: CurrencyRateEntry, isStale: Bool)? {
+    /// Retrieves an entry from cache with updated freshness status.
+    /// Live quotes from cache are accurately tagged as `.cached` (or `.stale` if older than max threshold).
+    public func get(
+        from: CurrencyCode,
+        to: CurrencyCode,
+        liveTTL: TimeInterval = defaultLiveQuoteTTL,
+        referenceTTL: TimeInterval = defaultReferenceRateTTL
+    ) -> (entry: CurrencyRateEntry, isStale: Bool)? {
         let key = cacheKey(from: from, to: to)
         guard let entry = entries[key] else { return nil }
 
@@ -43,9 +54,36 @@ public actor CurrencyRateCache {
             return nil
         }
 
-        let age = Date().timeIntervalSince(entry.timestamp)
-        let isStale = age > ttl
-        return (entry, isStale)
+        let now = Date()
+        let fetchAge = now.timeIntervalSince(entry.fetchTimestamp)
+
+        // Determine effective TTL based on entry type
+        let effectiveTTL = entry.isDailyReference ? referenceTTL : liveTTL
+        let isStale = fetchAge > effectiveTTL
+
+        // Honest freshness: never show cached quote as LIVE
+        let derivedFreshness: RateFreshness
+        if fetchAge > Self.defaultMaxStaleThreshold {
+            derivedFreshness = .stale
+        } else if entry.isDailyReference {
+            derivedFreshness = isStale ? .stale : .dailyReference
+        } else {
+            derivedFreshness = isStale ? .stale : .cached
+        }
+
+        let presentationEntry = CurrencyRateEntry(
+            from: entry.from,
+            to: entry.to,
+            rate: entry.rate,
+            quoteTimestamp: entry.quoteTimestamp,
+            fetchTimestamp: entry.fetchTimestamp,
+            providerDateString: entry.providerDateString,
+            providerName: entry.providerName,
+            freshness: derivedFreshness,
+            isDailyReference: entry.isDailyReference
+        )
+
+        return (presentationEntry, isStale)
     }
 
     public func set(_ entry: CurrencyRateEntry) {

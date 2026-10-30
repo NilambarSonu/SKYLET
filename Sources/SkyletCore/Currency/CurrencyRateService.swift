@@ -15,6 +15,9 @@ public struct CurrencyConversionResult: Equatable, Sendable {
     public let providerName: String
     public let isCached: Bool
     public let isStale: Bool
+    public let freshness: RateFreshness
+    public let quoteTimestamp: Date?
+    public let fetchTimestamp: Date
 
     public init(
         sourceAmount: Decimal,
@@ -25,7 +28,10 @@ public struct CurrencyConversionResult: Equatable, Sendable {
         rateDateString: String,
         providerName: String,
         isCached: Bool,
-        isStale: Bool
+        isStale: Bool,
+        freshness: RateFreshness = .dailyReference,
+        quoteTimestamp: Date? = nil,
+        fetchTimestamp: Date = Date()
     ) {
         self.sourceAmount = sourceAmount
         self.sourceCurrency = sourceCurrency
@@ -36,22 +42,50 @@ public struct CurrencyConversionResult: Equatable, Sendable {
         self.providerName = providerName
         self.isCached = isCached
         self.isStale = isStale
+        self.freshness = freshness
+        self.quoteTimestamp = quoteTimestamp
+        self.fetchTimestamp = fetchTimestamp
+    }
+
+    /// Informative, compact subtext formatted according to exact freshness and provenance rules.
+    public var formattedSubtext: String {
+        switch freshness {
+        case .live:
+            return "\(providerName) · Live quote · \(rateDateString)"
+        case .delayed:
+            return "\(providerName) · Delayed · Quote from \(rateDateString)"
+        case .cached:
+            return "\(providerName) · Cached · Quote from \(rateDateString)"
+        case .dailyReference:
+            return "\(providerName) · Daily reference · \(rateDateString)"
+        case .stale:
+            return "\(providerName) · Stale · Quote from \(rateDateString)"
+        case .unavailable:
+            return "\(providerName) · Unavailable"
+        }
     }
 }
 
-/// Service that coordinates rate providers, caching, decimal-safe conversions, and offline fallbacks.
+/// Service coordinating real-time Forex providers, reference fallbacks, request deduplication,
+/// and decimal-safe conversions.
 public actor CurrencyRateService {
-    private let primaryProvider: CurrencyRateProviding
-    private let fallbackProvider: CurrencyRateProviding?
+    private let realTimeProvider: CurrencyRateProviding
+    private let primaryReferenceProvider: CurrencyRateProviding
+    private let secondaryReferenceProvider: CurrencyRateProviding?
     private let cache: CurrencyRateCache
 
+    /// In-flight request deduplication map
+    private var inFlightRequests: [String: Task<CurrencyRateEntry, Error>] = [:]
+
     public init(
-        primaryProvider: CurrencyRateProviding = ExchangeRateAPIProvider(),
-        fallbackProvider: CurrencyRateProviding? = FrankfurterRateProvider(),
+        realTimeProvider: CurrencyRateProviding = TwelveDataRateProvider(),
+        primaryReferenceProvider: CurrencyRateProviding = ExchangeRateAPIProvider(),
+        secondaryReferenceProvider: CurrencyRateProviding? = FrankfurterRateProvider(),
         cache: CurrencyRateCache = CurrencyRateCache.shared
     ) {
-        self.primaryProvider = primaryProvider
-        self.fallbackProvider = fallbackProvider
+        self.realTimeProvider = realTimeProvider
+        self.primaryReferenceProvider = primaryReferenceProvider
+        self.secondaryReferenceProvider = secondaryReferenceProvider
         self.cache = cache
     }
 
@@ -73,7 +107,10 @@ public actor CurrencyRateService {
                 rateDateString: "Local (Same Currency)",
                 providerName: "Local",
                 isCached: false,
-                isStale: false
+                isStale: false,
+                freshness: .live,
+                quoteTimestamp: Date(),
+                fetchTimestamp: Date()
             )
         }
 
@@ -89,75 +126,114 @@ public actor CurrencyRateService {
                 rateDateString: cached.entry.providerDateString,
                 providerName: cached.entry.providerName,
                 isCached: true,
-                isStale: false
+                isStale: false,
+                freshness: cached.entry.freshness,
+                quoteTimestamp: cached.entry.quoteTimestamp,
+                fetchTimestamp: cached.entry.fetchTimestamp
             )
         }
 
-        // 3. Perform network fetch with primary and fallback providers
-        var lastError: Error?
+        // 3. Deduplicated network fetch
+        let deduplicationKey = "\(source.rawValue)_\(target.rawValue)"
+
+        let rateTask: Task<CurrencyRateEntry, Error>
+        if let existing = inFlightRequests[deduplicationKey] {
+            rateTask = existing
+        } else {
+            let task = Task<CurrencyRateEntry, Error> {
+                try await self.fetchWithFallback(from: source, to: target)
+            }
+            inFlightRequests[deduplicationKey] = task
+            rateTask = task
+        }
+
+        let entry: CurrencyRateEntry
         do {
-            let entry = try await primaryProvider.fetchRate(from: source, to: target)
-            await cache.set(entry)
-            let targetAmount = calculateTargetAmount(amount: amount, rate: entry.rate)
-            return CurrencyConversionResult(
-                sourceAmount: amount,
-                sourceCurrency: source,
-                targetAmount: targetAmount,
-                targetCurrency: target,
-                rate: entry.rate,
-                rateDateString: entry.providerDateString,
-                providerName: entry.providerName,
-                isCached: false,
-                isStale: false
-            )
+            entry = try await rateTask.value
+            inFlightRequests.removeValue(forKey: deduplicationKey)
         } catch {
-            lastError = error
-        }
-
-        // Try fallback provider if configured
-        if let fallback = fallbackProvider {
-            do {
-                let entry = try await fallback.fetchRate(from: source, to: target)
-                await cache.set(entry)
-                let targetAmount = calculateTargetAmount(amount: amount, rate: entry.rate)
+            inFlightRequests.removeValue(forKey: deduplicationKey)
+            // 4. If all network fetches failed, check if we have any cached entry (even stale)
+            if let staleCached = await cache.get(from: source, to: target) {
+                let targetAmount = calculateTargetAmount(amount: amount, rate: staleCached.entry.rate)
                 return CurrencyConversionResult(
                     sourceAmount: amount,
                     sourceCurrency: source,
                     targetAmount: targetAmount,
                     targetCurrency: target,
-                    rate: entry.rate,
-                    rateDateString: entry.providerDateString,
-                    providerName: entry.providerName,
-                    isCached: false,
-                    isStale: false
+                    rate: staleCached.entry.rate,
+                    rateDateString: staleCached.entry.providerDateString,
+                    providerName: staleCached.entry.providerName,
+                    isCached: true,
+                    isStale: true,
+                    freshness: .stale,
+                    quoteTimestamp: staleCached.entry.quoteTimestamp,
+                    fetchTimestamp: staleCached.entry.fetchTimestamp
                 )
+            }
+            throw error
+        }
+
+        // Cache valid entry
+        await cache.set(entry)
+
+        let targetAmount = calculateTargetAmount(amount: amount, rate: entry.rate)
+        return CurrencyConversionResult(
+            sourceAmount: amount,
+            sourceCurrency: source,
+            targetAmount: targetAmount,
+            targetCurrency: target,
+            rate: entry.rate,
+            rateDateString: entry.providerDateString,
+            providerName: entry.providerName,
+            isCached: false,
+            isStale: false,
+            freshness: entry.freshness,
+            quoteTimestamp: entry.quoteTimestamp,
+            fetchTimestamp: entry.fetchTimestamp
+        )
+    }
+
+    /// Fetches from real-time provider first; falls back to daily reference providers if unavailable.
+    private func fetchWithFallback(from source: CurrencyCode, to target: CurrencyCode) async throws -> CurrencyRateEntry {
+        var lastError: Error?
+
+        // Attempt Twelve Data real-time provider
+        do {
+            let entry = try await realTimeProvider.fetchRate(from: source, to: target)
+            return entry
+        } catch {
+            lastError = error
+        }
+
+        // Fallback to Primary Reference Provider (ExchangeRate-API)
+        do {
+            let entry = try await primaryReferenceProvider.fetchRate(from: source, to: target)
+            return entry
+        } catch {
+            lastError = error
+        }
+
+        // Fallback to Secondary Reference Provider (Frankfurter)
+        if let secondary = secondaryReferenceProvider {
+            do {
+                let entry = try await secondary.fetchRate(from: source, to: target)
+                return entry
             } catch {
                 lastError = error
             }
         }
 
-        // 4. If network failed, check if we have any cached entry (even stale)
-        if let staleCached = await cache.get(from: source, to: target) {
-            let targetAmount = calculateTargetAmount(amount: amount, rate: staleCached.entry.rate)
-            return CurrencyConversionResult(
-                sourceAmount: amount,
-                sourceCurrency: source,
-                targetAmount: targetAmount,
-                targetCurrency: target,
-                rate: staleCached.entry.rate,
-                rateDateString: staleCached.entry.providerDateString,
-                providerName: staleCached.entry.providerName,
-                isCached: true,
-                isStale: true
-            )
-        }
-
-        // No rate available from network or cache
         throw lastError ?? CurrencyRateError.networkUnavailable
     }
 
     private func calculateTargetAmount(amount: Decimal, rate: Decimal) -> Decimal {
-        amount * rate
+        var result = Decimal()
+        var a = amount
+        var r = rate
+        NSDecimalMultiply(&result, &a, &r, .plain)
+        return result
     }
 }
+
 

@@ -142,9 +142,10 @@ func runAllTests() async {
     mockProvider.rates["EUR_INR"] = Decimal(string: "101.4567")!
 
     let service = CurrencyRateService(
-        primaryProvider: mockProvider,
-        fallbackProvider: nil,
-        cache: CurrencyRateCache(ttl: 3600, persistToDisk: false)
+        realTimeProvider: mockProvider,
+        primaryReferenceProvider: mockProvider,
+        secondaryReferenceProvider: nil,
+        cache: CurrencyRateCache(persistToDisk: false)
     )
 
     // INR-to-INR identity
@@ -177,9 +178,381 @@ func runAllTests() async {
     assert(CurrencyFormatter.format(amount: 49.99, currency: .eur) == "€49.99", "CurrencyFormatter.format formats EUR with €")
     assert(CurrencyFormatter.format(amount: 100, currency: .aed) == "100.00 AED", "CurrencyFormatter.format formats AED with code suffix")
     assert(CurrencyFormatter.formatRate(from: .usd, to: .inr, rate: Decimal(string: "95.22")!) == "1 USD = 95.22 INR", "CurrencyFormatter.formatRate formats rate pair")
+    assert(CurrencyFormatter.formatRateCompact(from: .usd, to: .inr, rate: Decimal(string: "95.24")!) == "1 USD = ₹95.24", "CurrencyFormatter.formatRateCompact formats with ₹ symbol for INR")
     assert(CurrencyFormatter.copyableSummary(fromAmount: 25, fromCurrency: .usd, toAmount: Decimal(string: "2380.50")!) == "$25.00 = ₹2,380.50", "CurrencyFormatter.copyableSummary formats copyable text")
 
-    print("\n[3/3] Focus Timer & Power Assertion Lifecycle Tests")
+    print("\n[3/4] Real-Time FX, Twelve Data & Keychain Tests")
+
+    // Mock URLProtocol for isolated Twelve Data networking tests
+    final class MockURLProtocol: URLProtocol, @unchecked Sendable {
+        nonisolated(unsafe) static var mockResponseData: Data?
+        nonisolated(unsafe) static var mockStatusCode: Int = 200
+        nonisolated(unsafe) static var mockError: Error?
+        nonisolated(unsafe) static var lastRequest: URLRequest?
+
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            Self.lastRequest = request
+            if let error = Self.mockError {
+                client?.urlProtocol(self, didFailWithError: error)
+                return
+            }
+
+            let response = HTTPURLResponse(
+                url: request.url ?? URL(string: "https://api.twelvedata.com/exchange_rate")!,
+                statusCode: Self.mockStatusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+
+            if let data = Self.mockResponseData {
+                client?.urlProtocol(self, didLoad: data)
+            }
+            client?.urlProtocolDidFinishLoading(self)
+        }
+
+        override func stopLoading() {}
+    }
+
+    func makeMockSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        return URLSession(configuration: config)
+    }
+
+    // 1. Keychain storage and retrieval
+    let memKeychain = InMemoryKeychainManager()
+    assert(memKeychain.get(key: "test_key") == nil, "Keychain initially empty for key")
+    try! memKeychain.save(key: "test_key", value: "secret_12345")
+    assert(memKeychain.get(key: "test_key") == "secret_12345", "Keychain saves and retrieves API key correctly")
+    try! memKeychain.save(key: "test_key", value: "updated_secret")
+    assert(memKeychain.get(key: "test_key") == "updated_secret", "Keychain updates existing key")
+    try! memKeychain.delete(key: "test_key")
+    assert(memKeychain.get(key: "test_key") == nil, "Keychain deletes key successfully")
+
+    // 2. Twelve Data: Missing API Key
+    let emptyKeychain = InMemoryKeychainManager()
+    let mockSession = makeMockSession()
+    let providerWithNoKey = TwelveDataRateProvider(keychain: emptyKeychain, session: mockSession)
+    do {
+        _ = try await providerWithNoKey.fetchRate(from: .usd, to: .inr)
+        assert(false, "Twelve Data with missing key should throw missingAPIKey")
+    } catch CurrencyRateError.missingAPIKey {
+        assert(true, "Twelve Data with missing key throws CurrencyRateError.missingAPIKey")
+    } catch {
+        assert(false, "Twelve Data with missing key threw unexpected error: \(error)")
+    }
+
+    // 3. Twelve Data: Valid JSON response & Authorization header check
+    let validKeychain = InMemoryKeychainManager(initialItems: ["twelvedata_api_key": "valid_td_key_xyz"])
+    let liveEpoch = Int(Date().timeIntervalSince1970) - 60 // 1 minute ago
+    let validJSON = """
+    {"symbol": "USD/INR", "rate": 95.2450, "timestamp": \(liveEpoch)}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockResponseData = validJSON
+    MockURLProtocol.mockStatusCode = 200
+    MockURLProtocol.mockError = nil
+
+    let validProvider = TwelveDataRateProvider(keychain: validKeychain, session: mockSession, freshnessThreshold: 900)
+    do {
+        let entry = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(entry.from == .usd && entry.to == .inr, "Twelve Data returned requested currency pair")
+        assert(entry.rate == Decimal(string: "95.2450")!, "Twelve Data rate decoded accurately as Decimal")
+        assert(entry.freshness == .live, "Twelve Data within freshness threshold marked as LIVE")
+        assert(entry.providerName == "Twelve Data", "Twelve Data providerName is correctly labeled")
+        assert(MockURLProtocol.lastRequest?.value(forHTTPHeaderField: "Authorization") == "apikey valid_td_key_xyz", "Twelve Data sends Authorization: apikey header")
+    } catch {
+        assert(false, "Twelve Data valid response failed: \(error)")
+    }
+
+    // 4. Twelve Data: String rate format in JSON parsed with Decimal safety
+    let stringRateJSON = """
+    {"symbol": "USD/INR", "rate": "95.29615", "timestamp": 1717000000}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockResponseData = stringRateJSON
+    do {
+        let entry = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(entry.rate == Decimal(string: "95.29615")!, "Twelve Data string rate decoded with decimal safety")
+    } catch {
+        assert(false, "Twelve Data string rate decoding failed: \(error)")
+    }
+
+    // 5. Twelve Data: Invalid API key (HTTP 401 & JSON error)
+    let invalidKeyJSON = """
+    {"code": 401, "message": "apikey parameter is incorrect", "status": "error"}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockResponseData = invalidKeyJSON
+    MockURLProtocol.mockStatusCode = 401
+    do {
+        _ = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(false, "Twelve Data 401 should throw invalidAPIKey")
+    } catch CurrencyRateError.invalidAPIKey {
+        assert(true, "Twelve Data 401 correctly throws CurrencyRateError.invalidAPIKey")
+    } catch {
+        assert(false, "Twelve Data 401 threw unexpected error: \(error)")
+    }
+
+    // 6. Twelve Data: Rate limit reached (HTTP 429)
+    let rateLimitJSON = """
+    {"code": 429, "message": "You have reached your API call limit", "status": "error"}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockResponseData = rateLimitJSON
+    MockURLProtocol.mockStatusCode = 429
+    do {
+        _ = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(false, "Twelve Data 429 should throw rateLimitExceeded")
+    } catch CurrencyRateError.rateLimitExceeded {
+        assert(true, "Twelve Data 429 correctly throws CurrencyRateError.rateLimitExceeded")
+    } catch {
+        assert(false, "Twelve Data 429 threw unexpected error: \(error)")
+    }
+
+    // 7. Twelve Data: Unsupported currency pair (HTTP 404)
+    let notFoundJSON = """
+    {"code": 404, "message": "Cannot find requested symbol", "status": "error"}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockResponseData = notFoundJSON
+    MockURLProtocol.mockStatusCode = 200
+    do {
+        _ = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(false, "Twelve Data 404 symbol should throw unsupportedCurrencyPair")
+    } catch CurrencyRateError.unsupportedCurrencyPair {
+        assert(true, "Twelve Data 404 correctly throws CurrencyRateError.unsupportedCurrencyPair")
+    } catch {
+        assert(false, "Twelve Data 404 threw unexpected error: \(error)")
+    }
+
+    // 8. Twelve Data: Malformed JSON
+    MockURLProtocol.mockResponseData = "not-json-content".data(using: .utf8)!
+    MockURLProtocol.mockStatusCode = 200
+    do {
+        _ = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(false, "Malformed JSON should throw malformedData")
+    } catch CurrencyRateError.malformedData {
+        assert(true, "Malformed JSON correctly throws CurrencyRateError.malformedData")
+    } catch {
+        assert(false, "Malformed JSON threw unexpected error: \(error)")
+    }
+
+    // 9. Twelve Data: Missing timestamp
+    let missingTimestampJSON = """
+    {"symbol": "USD/INR", "rate": 95.24}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockResponseData = missingTimestampJSON
+    do {
+        _ = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(false, "Missing timestamp should throw malformedData")
+    } catch CurrencyRateError.malformedData {
+        assert(true, "Missing timestamp in response correctly throws CurrencyRateError.malformedData")
+    } catch {
+        assert(false, "Missing timestamp threw unexpected error: \(error)")
+    }
+
+    // 10. Twelve Data: Zero or non-positive rate
+    let zeroRateJSON = """
+    {"symbol": "USD/INR", "rate": 0, "timestamp": 1717000000}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockResponseData = zeroRateJSON
+    do {
+        _ = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(false, "Zero rate should throw providerRateNonPositive")
+    } catch CurrencyRateError.providerRateNonPositive {
+        assert(true, "Zero rate correctly throws CurrencyRateError.providerRateNonPositive")
+    } catch {
+        assert(false, "Zero rate threw unexpected error: \(error)")
+    }
+
+    // 11. Twelve Data: Network timeout handling
+    MockURLProtocol.mockError = URLError(.timedOut)
+    do {
+        _ = try await validProvider.fetchRate(from: .usd, to: .inr)
+        assert(false, "Network timeout should throw timeout error")
+    } catch CurrencyRateError.timeout {
+        assert(true, "URLError.timedOut correctly mapped to CurrencyRateError.timeout")
+    } catch {
+        assert(false, "Timeout threw unexpected error: \(error)")
+    }
+
+    // 12. Rate Freshness: Delayed quote on market closed (e.g. weekend age)
+    let marketClosedEpoch = Int(Date().timeIntervalSince1970) - (36 * 3600) // 36 hours old
+    let marketClosedJSON = """
+    {"symbol": "USD/INR", "rate": 95.24, "timestamp": \(marketClosedEpoch)}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockError = nil
+    MockURLProtocol.mockResponseData = marketClosedJSON
+    MockURLProtocol.mockStatusCode = 200
+    let delayedProvider = TwelveDataRateProvider(keychain: validKeychain, session: mockSession, freshnessThreshold: 900)
+    do {
+        let entry = try await delayedProvider.fetchRate(from: .usd, to: .inr)
+        assert(entry.freshness == .delayed, "Weekend / closed market quote correctly marked as DELAYED")
+    } catch {
+        assert(false, "Delayed quote check failed: \(error)")
+    }
+
+    // 13. Rate Freshness: Stale quote (exceeding 72 hours)
+    let staleEpoch = Int(Date().timeIntervalSince1970) - (80 * 3600) // 80 hours old
+    let staleJSON = """
+    {"symbol": "USD/INR", "rate": 95.24, "timestamp": \(staleEpoch)}
+    """.data(using: .utf8)!
+    MockURLProtocol.mockResponseData = staleJSON
+    do {
+        let entry = try await delayedProvider.fetchRate(from: .usd, to: .inr)
+        assert(entry.freshness == .stale, "Older quote exceeding 72h correctly marked as STALE")
+    } catch {
+        assert(false, "Stale quote check failed: \(error)")
+    }
+
+    // 14. CurrencyRateCache: Cached quote marked CACHED (never LIVE)
+    let testCache = CurrencyRateCache(persistToDisk: false)
+    let liveEntry = CurrencyRateEntry(
+        from: .usd,
+        to: .inr,
+        rate: Decimal(string: "95.24")!,
+        quoteTimestamp: Date(),
+        fetchTimestamp: Date(),
+        providerDateString: "10:42:18 UTC",
+        providerName: "Twelve Data",
+        freshness: .live,
+        isDailyReference: false
+    )
+    await testCache.set(liveEntry)
+    let retrieved = await testCache.get(from: .usd, to: .inr, liveTTL: 300)
+    assert(retrieved != nil, "Cache retrieves entry successfully")
+    assert(retrieved?.entry.freshness == .cached, "Retrieved live quote from cache is honestly marked CACHED, never LIVE")
+    assert(retrieved?.entry.providerDateString == "10:42:18 UTC", "Original provider timestamp preserved in cache retrieval")
+
+    // 15. Formatted subtext formatting checks
+    let liveResult = CurrencyConversionResult(
+        sourceAmount: 1, sourceCurrency: .usd, targetAmount: Decimal(string: "95.24")!, targetCurrency: .inr,
+        rate: Decimal(string: "95.24")!, rateDateString: "10:42:18 UTC", providerName: "Twelve Data",
+        isCached: false, isStale: false, freshness: .live
+    )
+    assert(liveResult.formattedSubtext == "Twelve Data · Live quote · 10:42:18 UTC", "LIVE result subtext formatted accurately")
+
+    let cachedResult = CurrencyConversionResult(
+        sourceAmount: 1, sourceCurrency: .usd, targetAmount: Decimal(string: "95.24")!, targetCurrency: .inr,
+        rate: Decimal(string: "95.24")!, rateDateString: "10:42:18 UTC", providerName: "Twelve Data",
+        isCached: true, isStale: false, freshness: .cached
+    )
+    assert(cachedResult.formattedSubtext == "Twelve Data · Cached · Quote from 10:42:18 UTC", "CACHED result subtext formatted accurately")
+
+    let referenceResult = CurrencyConversionResult(
+        sourceAmount: 1, sourceCurrency: .usd, targetAmount: Decimal(string: "95.22")!, targetCurrency: .inr,
+        rate: Decimal(string: "95.22")!, rateDateString: "29 Oct 2026", providerName: "ExchangeRate-API",
+        isCached: false, isStale: false, freshness: .dailyReference
+    )
+    assert(referenceResult.formattedSubtext == "ExchangeRate-API · Daily reference · 29 Oct 2026", "DAILY REFERENCE result subtext formatted accurately")
+
+    // 16. Fallback from Twelve Data to Reference Provider with honest DAILY REFERENCE label
+    final class MockReferenceProvider: CurrencyRateProviding, @unchecked Sendable {
+        let providerName = "Mock-Reference"
+        func fetchRate(from: CurrencyCode, to: CurrencyCode) async throws -> CurrencyRateEntry {
+            CurrencyRateEntry(
+                from: from,
+                to: to,
+                rate: Decimal(string: "95.20")!,
+                quoteTimestamp: Date(),
+                fetchTimestamp: Date(),
+                providerDateString: "29 Oct 2026",
+                providerName: providerName,
+                freshness: .dailyReference,
+                isDailyReference: true
+            )
+        }
+    }
+
+    final class FailingLiveProvider: CurrencyRateProviding, @unchecked Sendable {
+        let providerName = "Twelve Data"
+        func fetchRate(from: CurrencyCode, to: CurrencyCode) async throws -> CurrencyRateEntry {
+            throw CurrencyRateError.missingAPIKey("Key missing")
+        }
+    }
+
+    let serviceWithFallback = CurrencyRateService(
+        realTimeProvider: FailingLiveProvider(),
+        primaryReferenceProvider: MockReferenceProvider(),
+        secondaryReferenceProvider: nil,
+        cache: CurrencyRateCache(persistToDisk: false)
+    )
+
+    do {
+        let fallbackResult = try await serviceWithFallback.convert(amount: 100, from: .usd, to: .inr)
+        assert(fallbackResult.providerName == "Mock-Reference", "Service falls back to reference provider when live fails")
+        assert(fallbackResult.freshness == .dailyReference, "Fallback result is explicitly marked DAILY REFERENCE, never LIVE")
+    } catch {
+        assert(false, "Service fallback failed: \(error)")
+    }
+
+    // 17. USD/INR conversion calculation with exact Decimal fixture
+    let usdAmount = Decimal(string: "889.86")!
+    let fxRate = Decimal(string: "95.2450")!
+    var fixtureExpected = Decimal()
+    var amtCopy = usdAmount
+    var rateCopy = fxRate
+    NSDecimalMultiply(&fixtureExpected, &amtCopy, &rateCopy, .plain)
+
+    final class FixtureProvider: CurrencyRateProviding, @unchecked Sendable {
+        let providerName = "Twelve Data"
+        func fetchRate(from: CurrencyCode, to: CurrencyCode) async throws -> CurrencyRateEntry {
+            CurrencyRateEntry(
+                from: from,
+                to: to,
+                rate: Decimal(string: "95.2450")!,
+                quoteTimestamp: Date(),
+                fetchTimestamp: Date(),
+                providerDateString: "14:20:00 UTC",
+                providerName: providerName,
+                freshness: .live,
+                isDailyReference: false
+            )
+        }
+    }
+
+    let fixtureService = CurrencyRateService(
+        realTimeProvider: FixtureProvider(),
+        primaryReferenceProvider: MockReferenceProvider(),
+        cache: CurrencyRateCache(persistToDisk: false)
+    )
+
+    do {
+        let fixtureResult = try await fixtureService.convert(amount: usdAmount, from: .usd, to: .inr)
+        assert(fixtureResult.targetAmount == fixtureExpected, "889.86 USD * 95.2450 calculated with decimal-safe precision")
+        assert(fixtureResult.freshness == .live, "Fixture result freshness is LIVE")
+    } catch {
+        assert(false, "Fixture calculation failed: \(error)")
+    }
+
+    // 18. Cache isolation check: ensure no synthetic data wrote to disk cache
+    let cachePath = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("Skylet/rates_cache.json").path
+    if let path = cachePath, FileManager.default.fileExists(atPath: path) {
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+           let str = String(data: data, encoding: .utf8) {
+            assert(!str.contains("Mock") && !str.contains("MockDate"), "Production cache is completely free of test mock entries")
+        }
+    } else {
+        assert(true, "Production cache is not contaminated by test runner")
+    }
+
+    // 19. Optional Integration Test: If user configured real Twelve Data key in macOS Keychain
+    let localKeychain = MacOSKeychainManager.shared
+    if let realKey = localKeychain.get(key: "twelvedata_api_key")?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !realKey.isEmpty {
+        print("  * Found real Twelve Data key in Keychain! Testing live USD/INR...")
+        let liveProvider = TwelveDataRateProvider(keychain: localKeychain)
+        do {
+            let liveEntry = try await liveProvider.fetchRate(from: .usd, to: .inr)
+            print("  ✓ Real Twelve Data Live USD/INR: 1 USD = ₹\(liveEntry.rate) at \(liveEntry.providerDateString)")
+            assert(liveEntry.rate > 0, "Real Twelve Data returned positive USD/INR rate")
+        } catch {
+            print("  ! Real Twelve Data key test result: \(error.localizedDescription)")
+        }
+    }
+
+    print("\n[4/4] Focus Timer & Power Assertion Lifecycle Tests")
 
     final class LocalMockPower: PowerAssertionControlling, @unchecked Sendable {
         var isDisplayAwakeActive = false
