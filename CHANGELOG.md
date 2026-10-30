@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-10-30
+
+### Status
+Major Product Redesign, UX Rebuild & Solar Focus Instrument Release.
+
+### Highlights
+- **Rebuilt Focus Timer with Solar Sun Instrument**: Replaced dominant numeric countdown with an elegant, custom-drawn `SolarSunView` inspired by natural celestial daylight. 12 radial solar beams progressively recede and fade clockwise as time elapses, creating a calm, ambient visual sense of time without anxious second-by-second countdowns.
+- **Fixed Start Button Reactive State Bug**: Resolved state binding issues by directly observing `FocusTimerEngine` and forwarding object changes to `DropletInstance`. The action button immediately transitions between `Start Focus` (amber play) → `Pause` (amber pause) → `Resume` (amber play) → `Start Again` (emerald reload), accompanied by a dedicated `Reset` button for mid-session resets.
+- **Continuous Notch & Island Curvature**: Conformed droplet geometry to host container curvature (`18pt` shelf, `26.5pt` island). Replaced AppKit `.sheet` presentation with an in-place layered currency picker overlay, eliminating square modal window edges and visual clipping against the macOS notch.
+- **Brand New App Icon & Master Asset**: Designed a distinctive 1024×1024 master icon (`Skylet.icon`) featuring a deep midnight celestial base (`#070B14` to `#0E1A2E`), a warm luminous amber/gold solar core (`#FFB300` to `#FF6F00`), a sky-blue atmospheric horizon arc (`#38BDF8`), and 12 precision solar rays. Hand-tested for crisp legibility from 1024px down to 16px.
+- **Comprehensive Lifecycle Test Suite**: Expanded the automated test suite to 133 passing tests in `SkyletTestsRunner`, introducing explicit verification for all 16 focus timer lifecycle requirements (transitions, power assertion acquisition/release, monotonic zero-drift calculations, and exactly-once completion notifications).
+- **Notch Compact Live Activity**: Integrated a mini 18pt Solar Sun indicator into Droppy's leading Live Activity wing for seamless at-a-glance focus tracking directly inside the macOS menu bar and notch.
+
+### Changed
+- `Sources/Skylet/UI/SolarSunView.swift`: Introduced new custom radial solar timer component with animated beams, celestial horizon ring, and state-adaptive core glyphs.
+- `Sources/Skylet/UI/FocusTimerView.swift`: Completely rebuilt layout prioritizing visual calmness, direct `@ObservedObject` observation of `timerEngine`, dynamic action/reset buttons, and non-dominant secondary time info.
+- `Sources/Skylet/UI/CurrencyView.swift` & `CurrencySelectorView.swift`: Replaced square `.sheet` modals with in-place spring-animated overlay clipped to continuous 18pt corners.
+- `Sources/Skylet/UI/SkyletRootView.swift`: Clipped root container with `.clipShape(SkyletTheme.shelfShape)` for seamless notch integration.
+- `Sources/Skylet/Theme/SkyletTheme.swift`: Added solar color palette tokens (`solarGold`, `solarCore`, `solarFlare`, `solarGlow`, `solarRayActive`, `solarRayTrack`) and continuous shelf corner radius tokens.
+- `Sources/SkyletCore/Focus/FocusTimerEngine.swift`: Added `actionButtonTitle`, `actionButtonIcon`, `statusBadgeText`, and exactly-once `sessionCompletedNotification` and `onCompletion` callbacks.
+- `Sources/SkyletTestsRunner/main.swift`: Expanded test coverage to 133 passing tests covering all 16 lifecycle requirements and UI state transitions.
+- `Skylet.icon`: Replaced placeholder mark and background gradients with master celestial solar assets.
+- `droplet.json`: Bumped version to `1.1.0` and linked screenshots in `Assets/`.
+- `README.md`, `docs/RELEASE.md`, `docs/TESTING.md`, `docs/KNOWN_LIMITATIONS.md`: Updated documentation and screenshots for v1.1.0.
+
+---
+
 ## [1.0.1] - 2026-10-30
 
 ### Status

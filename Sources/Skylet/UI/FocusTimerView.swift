@@ -2,7 +2,7 @@
 //  FocusTimerView.swift
 //  Skylet
 //
-//  Premium Focus Instrument & Display-Awake Manager
+//  Redesigned Solar Focus Instrument & Display-Awake Manager
 //  Quiet Precision. Instant Intelligence.
 //
 
@@ -12,6 +12,7 @@ import SkyletCore
 
 public struct FocusTimerView: View {
     @ObservedObject var droplet: SkyletDroplet
+    @ObservedObject var timerEngine: FocusTimerEngine
     let isCompact: Bool
 
     @State private var selectedPreset: FocusPreset = .thirty
@@ -20,6 +21,7 @@ public struct FocusTimerView: View {
 
     public init(droplet: SkyletDroplet, isCompact: Bool) {
         self.droplet = droplet
+        self.timerEngine = droplet.timerEngine
         self.isCompact = isCompact
     }
 
@@ -37,83 +39,126 @@ public struct FocusTimerView: View {
 
     private var fullBody: some View {
         VStack(alignment: .leading, spacing: DroppySpacing.xs) {
-            // Main Countdown, Progress Ring & Controls Row
+            // Hero Solar Row: Animated Sun, Status Info, & Action Controls
             HStack(spacing: DroppySpacing.md) {
-                // Circular Progress Ring
-                progressRing
+                // The Animated Sun (Primary Visual Timer Instrument)
+                SolarSunView(
+                    status: timerEngine.status,
+                    diameter: 68,
+                    showAura: true
+                )
 
-                // Countdown and Status Labels
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(displayCountdown)
-                        .font(SkyletTheme.countdownFont)
-                        .monospacedDigit()
-                        .foregroundStyle(SkyletTheme.primaryText)
-                        .lineLimit(1)
+                // Session Status & Secondary Duration Information
+                VStack(alignment: .leading, spacing: 3) {
+                    // Status Badge (READY, FOCUSING, PAUSED, COMPLETED)
+                    statusBadge
 
-                    statusSubtitle
+                    // Secondary Session Progress / Duration (Calm, Not Overpowering)
+                    secondarySessionInfo
+
+                    // Display-Awake Notice
+                    displayAwakeNotice
                 }
 
                 Spacer(minLength: DroppySpacing.sm)
 
-                // Action Controls
-                actionButtons
+                // Action Controls (Start Focus / Pause / Resume / Start Again + Reset)
+                actionButtonsGroup
             }
             .padding(.vertical, 2)
 
-            // Duration Presets (shown when idle or completed)
-            if !droplet.timerEngine.status.isRunning && !droplet.timerEngine.status.isPaused {
+            // Duration Presets (available when idle or completed)
+            if !timerEngine.status.isRunning && !timerEngine.status.isPaused {
                 presetRow
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else {
+                activeSessionFooter
+                    .transition(.opacity)
             }
         }
     }
 
-    // MARK: - Circular Progress Ring
+    // MARK: - Status Badge
 
-    private var progressRing: some View {
-        ZStack {
-            // Track
+    @ViewBuilder
+    private var statusBadge: some View {
+        HStack(spacing: 5) {
             Circle()
-                .stroke(SkyletTheme.cardFill, lineWidth: 3.5)
-                .frame(width: 52, height: 52)
+                .fill(statusIndicatorColor)
+                .frame(width: 6, height: 6)
 
-            // Progress Arc
-            Circle()
-                .trim(from: 0.0, to: CGFloat(currentProgress))
-                .stroke(
-                    progressColor,
-                    style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .frame(width: 52, height: 52)
-                .animation(.linear(duration: 0.5), value: currentProgress)
-
-            // Center Symbol
-            centerGlyph
+            Text(statusBadgeTitle)
+                .font(SkyletTheme.statusBadgeFont)
+                .foregroundStyle(statusIndicatorColor)
+                .tracking(0.8)
         }
     }
 
-    @ViewBuilder
-    private var centerGlyph: some View {
-        switch droplet.timerEngine.status {
+    private var statusBadgeTitle: String {
+        switch timerEngine.status {
         case .idle:
-            Image(systemName: "timer")
-                .font(.system(size: 15))
-                .foregroundStyle(SkyletTheme.tertiaryText)
-
+            return "READY"
         case .running:
-            Image(systemName: droplet.timerEngine.isDisplayAwake ? "sun.max.fill" : "timer")
-                .font(.system(size: 15))
-                .foregroundStyle(SkyletTheme.skyBlue)
-
+            return "FOCUSING"
         case .paused:
-            Image(systemName: "pause.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(SkyletTheme.statusDelayed)
-
+            return "PAUSED"
         case .completed:
-            Image(systemName: "checkmark")
-                .font(.system(size: 15, weight: .bold))
+            return "COMPLETED"
+        @unknown default:
+            return "FOCUS"
+        }
+    }
+
+    private var statusIndicatorColor: Color {
+        switch timerEngine.status {
+        case .idle:
+            return SkyletTheme.solarGold
+        case .running:
+            return SkyletTheme.solarGold
+        case .paused:
+            return SkyletTheme.statusDelayed
+        case .completed:
+            return SkyletTheme.statusLive
+        @unknown default:
+            return SkyletTheme.tertiaryText
+        }
+    }
+
+    // MARK: - Secondary Session Info (Calm & Non-Dominant)
+
+    @ViewBuilder
+    private var secondarySessionInfo: some View {
+        switch timerEngine.status {
+        case .idle:
+            Text("\(Int(durationForStart() / 60)) min focus session")
+                .font(SkyletTheme.sessionSubtitleFont)
+                .foregroundStyle(SkyletTheme.primaryText)
+
+        case .running(_, let remaining, _):
+            HStack(spacing: 4) {
+                Text(FocusTimerEngine.formatCountdown(remaining))
+                    .font(SkyletTheme.sessionSubtitleFont)
+                    .monospacedDigit()
+                    .foregroundStyle(SkyletTheme.primaryText)
+                Text("remaining")
+                    .font(SkyletTheme.captionFont)
+                    .foregroundStyle(SkyletTheme.secondaryText)
+            }
+
+        case .paused(_, let remaining, _):
+            HStack(spacing: 4) {
+                Text(FocusTimerEngine.formatCountdown(remaining))
+                    .font(SkyletTheme.sessionSubtitleFont)
+                    .monospacedDigit()
+                    .foregroundStyle(SkyletTheme.statusDelayed)
+                Text("paused")
+                    .font(SkyletTheme.captionFont)
+                    .foregroundStyle(SkyletTheme.statusDelayed)
+            }
+
+        case .completed(let total):
+            Text("\(Int(total / 60)) min session finished")
+                .font(SkyletTheme.sessionSubtitleFont)
                 .foregroundStyle(SkyletTheme.statusLive)
 
         @unknown default:
@@ -121,59 +166,151 @@ public struct FocusTimerView: View {
         }
     }
 
-    private var progressColor: Color {
-        switch droplet.timerEngine.status {
-        case .completed: return SkyletTheme.statusLive
-        case .paused: return SkyletTheme.statusDelayed
-        default: return SkyletTheme.skyBlue
-        }
-    }
-
-    // MARK: - Status Subtitle
+    // MARK: - Display-Awake Notice
 
     @ViewBuilder
-    private var statusSubtitle: some View {
-        HStack(spacing: 5) {
-            switch droplet.timerEngine.status {
-            case .idle:
-                Image(systemName: "sun.max")
-                    .font(.system(size: 9))
-                    .foregroundStyle(SkyletTheme.tertiaryText)
-                Text("Keeps display awake during session")
-                    .font(SkyletTheme.captionFont)
-                    .foregroundStyle(SkyletTheme.tertiaryText)
+    private var displayAwakeNotice: some View {
+        HStack(spacing: 4) {
+            Image(systemName: timerEngine.isDisplayAwake ? "sun.max.fill" : "sun.max")
+                .font(.system(size: 9))
+                .foregroundStyle(timerEngine.isDisplayAwake ? SkyletTheme.solarGold : SkyletTheme.tertiaryText)
 
-            case .running:
-                Circle()
-                    .fill(SkyletTheme.skyBlue)
-                    .frame(width: 5, height: 5)
-                Text("Display awake")
-                    .font(SkyletTheme.captionFont)
-                    .foregroundStyle(SkyletTheme.skyBlue)
-
-            case .paused:
-                Circle()
-                    .fill(SkyletTheme.statusDelayed)
-                    .frame(width: 5, height: 5)
-                Text("Session paused")
-                    .font(SkyletTheme.captionFont)
-                    .foregroundStyle(SkyletTheme.statusDelayed)
-
-            case .completed:
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(SkyletTheme.statusLive)
-                Text("Session completed")
-                    .font(SkyletTheme.captionFont)
-                    .foregroundStyle(SkyletTheme.statusLive)
-
-            @unknown default:
-                EmptyView()
-            }
+            Text(timerEngine.isDisplayAwake ? "Display kept awake" : "Keeps display awake during focus")
+                .font(SkyletTheme.captionFont)
+                .foregroundStyle(timerEngine.isDisplayAwake ? SkyletTheme.solarGold.opacity(0.9) : SkyletTheme.tertiaryText)
+                .lineLimit(1)
         }
     }
 
-    // MARK: - Duration Presets Row
+    // MARK: - Action Buttons Group
+
+    private var actionButtonsGroup: some View {
+        HStack(spacing: DroppySpacing.xs) {
+            // Secondary Reset Button (shown only during active or paused session)
+            if timerEngine.status.isRunning || timerEngine.status.isPaused {
+                Button {
+                    withAnimation(SkyletTheme.quickAnimation) {
+                        timerEngine.reset()
+                    }
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(SkyletTheme.secondaryText)
+                        .padding(7)
+                        .background(SkyletTheme.controlBackground)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Reset session to idle")
+                .accessibilityLabel("Reset focus timer")
+            }
+
+            // Primary Action Button
+            primaryActionButton
+        }
+    }
+
+    @ViewBuilder
+    private var primaryActionButton: some View {
+        switch timerEngine.status {
+        case .idle:
+            Button {
+                withAnimation(SkyletTheme.standardAnimation) {
+                    startSelectedSession()
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("Start Focus")
+                        .font(SkyletTheme.buttonFont)
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(Color.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(SkyletTheme.solarGold)
+                .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.sm, style: .continuous))
+                .shadow(color: SkyletTheme.solarGold.opacity(0.25), radius: 3, x: 0, y: 1)
+            }
+            .buttonStyle(.plain)
+            .help("Start focus session and keep display awake")
+            .accessibilityLabel("Start Focus session")
+
+        case .running:
+            Button {
+                withAnimation(SkyletTheme.quickAnimation) {
+                    timerEngine.pause()
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("Pause")
+                        .font(SkyletTheme.buttonFont)
+                }
+                .foregroundStyle(SkyletTheme.primaryText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(SkyletTheme.controlBackground)
+                .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.sm, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help("Pause timer (releases display-awake assertion)")
+            .accessibilityLabel("Pause focus timer")
+
+        case .paused:
+            Button {
+                withAnimation(SkyletTheme.quickAnimation) {
+                    timerEngine.resume()
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("Resume")
+                        .font(SkyletTheme.buttonFont)
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(Color.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(SkyletTheme.solarGold)
+                .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.sm, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help("Resume timer (re-acquires display-awake assertion)")
+            .accessibilityLabel("Resume focus timer")
+
+        case .completed:
+            Button {
+                withAnimation(SkyletTheme.standardAnimation) {
+                    startSelectedSession()
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("Start Again")
+                        .font(SkyletTheme.buttonFont)
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(Color.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(SkyletTheme.statusLive)
+                .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.sm, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help("Start another focus session")
+            .accessibilityLabel("Start Again")
+
+        @unknown default:
+            EmptyView()
+        }
+    }
+
+    // MARK: - Presets Row
 
     private var presetRow: some View {
         HStack(spacing: DroppySpacing.xs) {
@@ -188,8 +325,8 @@ public struct FocusTimerView: View {
                         .font(SkyletTheme.compactButtonFont)
                         .padding(.horizontal, DroppySpacing.sm)
                         .padding(.vertical, 3)
-                        .background((!isCustomSelected && selectedPreset == preset) ? SkyletTheme.skyBlue.opacity(0.22) : SkyletTheme.controlBackground)
-                        .foregroundStyle((!isCustomSelected && selectedPreset == preset) ? SkyletTheme.skyBlue : SkyletTheme.primaryText)
+                        .background((!isCustomSelected && selectedPreset == preset) ? SkyletTheme.solarGold.opacity(0.25) : SkyletTheme.controlBackground)
+                        .foregroundStyle((!isCustomSelected && selectedPreset == preset) ? SkyletTheme.solarGold : SkyletTheme.primaryText)
                         .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -215,153 +352,51 @@ public struct FocusTimerView: View {
             }
             .padding(.horizontal, 4)
             .padding(.vertical, 3)
-            .background(isCustomSelected ? SkyletTheme.skyBlue.opacity(0.22) : SkyletTheme.controlBackground)
+            .background(isCustomSelected ? SkyletTheme.solarGold.opacity(0.25) : SkyletTheme.controlBackground)
             .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.xs, style: .continuous))
         }
         .padding(.top, 2)
     }
 
-    // MARK: - Action Buttons
+    // MARK: - Active Session Footer
 
-    @ViewBuilder
-    private var actionButtons: some View {
-        switch droplet.timerEngine.status {
-        case .idle:
-            Button {
-                withAnimation(SkyletTheme.standardAnimation) {
-                    startSelectedSession()
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 9))
-                    Text("Start")
-                        .font(SkyletTheme.buttonFont)
-                }
-                .foregroundStyle(Color.black)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(SkyletTheme.skyBlue)
-                .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.sm, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .help("Start focus session and keep display awake")
+    private var activeSessionFooter: some View {
+        HStack(spacing: DroppySpacing.xs) {
+            // Subtle session details
+            Text("Focus Session Active")
+                .font(SkyletTheme.captionFont)
+                .foregroundStyle(SkyletTheme.secondaryText)
 
-        case .running:
-            HStack(spacing: DroppySpacing.xs) {
-                Button {
-                    withAnimation(SkyletTheme.quickAnimation) {
-                        droplet.timerEngine.pause()
-                    }
-                } label: {
-                    Image(systemName: "pause.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(SkyletTheme.primaryText)
-                        .padding(7)
-                        .background(SkyletTheme.controlBackground)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Pause timer (releases display-awake assertion)")
+            Spacer()
 
-                Button {
-                    withAnimation(SkyletTheme.quickAnimation) {
-                        droplet.timerEngine.stop()
-                    }
-                } label: {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(SkyletTheme.statusError)
-                        .padding(7)
-                        .background(SkyletTheme.controlBackground)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Stop timer and cancel session")
-            }
-
-        case .paused:
-            HStack(spacing: DroppySpacing.xs) {
-                Button {
-                    withAnimation(SkyletTheme.quickAnimation) {
-                        droplet.timerEngine.resume()
-                    }
-                } label: {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(SkyletTheme.skyBlue)
-                        .padding(7)
-                        .background(SkyletTheme.skyBlue.opacity(0.18))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Resume timer (re-acquires display-awake assertion)")
-
-                Button {
-                    withAnimation(SkyletTheme.quickAnimation) {
-                        droplet.timerEngine.stop()
-                    }
-                } label: {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(SkyletTheme.statusError)
-                        .padding(7)
-                        .background(SkyletTheme.controlBackground)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Cancel timer")
-            }
-
-        case .completed:
-            Button {
-                withAnimation(SkyletTheme.standardAnimation) {
-                    droplet.timerEngine.reset()
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 9))
-                    Text("New Session")
-                        .font(SkyletTheme.buttonFont)
-                }
-                .foregroundStyle(SkyletTheme.primaryText)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(SkyletTheme.controlBackground)
-                .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.sm, style: .continuous))
-            }
-            .buttonStyle(.plain)
-
-        @unknown default:
-            EmptyView()
+            // Reset shortcut hint
+            Text("Click reset to stop early")
+                .font(SkyletTheme.captionFont)
+                .foregroundStyle(SkyletTheme.tertiaryText)
         }
+        .padding(.top, 2)
     }
 
     // MARK: - Compact (Paired) Body
 
     private var compactBody: some View {
         HStack(spacing: DroppySpacing.sm) {
+            // Mini Animated Sun
+            SolarSunView(
+                status: timerEngine.status,
+                diameter: 38,
+                showAura: false
+            )
+
             VStack(alignment: .leading, spacing: 1) {
-                Text(displayCountdown)
+                Text(statusBadgeTitle)
+                    .font(SkyletTheme.statusBadgeFont)
+                    .foregroundStyle(statusIndicatorColor)
+
+                Text(compactTimeText)
                     .font(SkyletTheme.smallCountdownFont)
                     .monospacedDigit()
                     .foregroundStyle(SkyletTheme.primaryText)
-
-                if droplet.timerEngine.isDisplayAwake {
-                    HStack(spacing: 3) {
-                        Circle()
-                            .fill(SkyletTheme.skyBlue)
-                            .frame(width: 4, height: 4)
-                        Text("Awake")
-                            .font(SkyletTheme.captionFont)
-                            .foregroundStyle(SkyletTheme.skyBlue)
-                    }
-                } else if droplet.timerEngine.status.isPaused {
-                    Text("Paused")
-                        .font(SkyletTheme.captionFont)
-                        .foregroundStyle(SkyletTheme.statusDelayed)
-                }
             }
 
             Spacer(minLength: 0)
@@ -371,41 +406,47 @@ public struct FocusTimerView: View {
                     toggleTimer()
                 }
             } label: {
-                Image(systemName: droplet.timerEngine.status.isRunning ? "pause.fill" : "play.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(droplet.timerEngine.status.isRunning ? SkyletTheme.statusDelayed : SkyletTheme.skyBlue)
+                Image(systemName: compactToggleIcon)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(timerEngine.status.isRunning ? SkyletTheme.primaryText : Color.black)
                     .padding(6)
-                    .background(SkyletTheme.controlBackground)
+                    .background(timerEngine.status.isRunning ? SkyletTheme.controlBackground : SkyletTheme.solarGold)
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(statusBadgeTitle)
         }
     }
 
-    // MARK: - Helpers
-
-    private var displayCountdown: String {
-        switch droplet.timerEngine.status {
+    private var compactTimeText: String {
+        switch timerEngine.status {
         case .idle:
-            let seconds = durationForStart()
-            return FocusTimerEngine.formatCountdown(seconds)
+            return FocusTimerEngine.formatCountdown(durationForStart())
         case .running(_, let remaining, _), .paused(_, let remaining, _):
             return FocusTimerEngine.formatCountdown(remaining)
         case .completed:
-            return "00:00"
+            return "Done"
         @unknown default:
             return "00:00"
         }
     }
 
-    private var currentProgress: Double {
-        switch droplet.timerEngine.status {
-        case .idle: return 0.0
-        case .running(_, _, let progress), .paused(_, _, let progress): return progress
-        case .completed: return 1.0
-        @unknown default: return 0.0
+    private var compactToggleIcon: String {
+        switch timerEngine.status {
+        case .idle:
+            return "play.fill"
+        case .running:
+            return "pause.fill"
+        case .paused:
+            return "play.fill"
+        case .completed:
+            return "arrow.clockwise"
+        @unknown default:
+            return "play.fill"
         }
     }
+
+    // MARK: - Helpers
 
     private func durationForStart() -> TimeInterval {
         if isCustomSelected, let mins = Double(customMinutes), mins > 0 {
@@ -416,17 +457,17 @@ public struct FocusTimerView: View {
 
     private func startSelectedSession() {
         let duration = durationForStart()
-        droplet.timerEngine.start(duration: duration)
+        timerEngine.start(duration: duration)
     }
 
     private func toggleTimer() {
-        switch droplet.timerEngine.status {
+        switch timerEngine.status {
         case .idle, .completed:
             startSelectedSession()
         case .running:
-            droplet.timerEngine.pause()
+            timerEngine.pause()
         case .paused:
-            droplet.timerEngine.resume()
+            timerEngine.resume()
         @unknown default:
             break
         }

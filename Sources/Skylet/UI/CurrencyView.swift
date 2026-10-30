@@ -36,28 +36,40 @@ public struct CurrencyView: View {
     }
 
     public var body: some View {
-        Group {
+        ZStack {
             if isCompact {
                 compactBody
             } else {
                 fullBody
             }
-        }
-        .sheet(isPresented: $showCurrencyPicker) {
-            CurrencySelectorView(
-                selectedCurrency: $selectedCurrency,
-                onSelect: { code in
-                    selectedCurrency = code
-                    ambiguousCandidates = []
-                    if let amt = detectedAmount {
-                        executeConversion(amount: amt, source: code)
+
+            if showCurrencyPicker {
+                CurrencySelectorView(
+                    selectedCurrency: $selectedCurrency,
+                    onSelect: { code in
+                        selectedCurrency = code
+                        ambiguousCandidates = []
+                        withAnimation(SkyletTheme.quickAnimation) {
+                            showCurrencyPicker = false
+                        }
+                        if let amt = detectedAmount {
+                            executeConversion(amount: amt, source: code)
+                        }
+                    },
+                    onDismiss: {
+                        withAnimation(SkyletTheme.quickAnimation) {
+                            showCurrencyPicker = false
+                        }
                     }
-                },
-                onDismiss: {
-                    showCurrencyPicker = false
-                }
-            )
+                )
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.96)),
+                    removal: .opacity.combined(with: .scale(scale: 0.96))
+                ))
+                .zIndex(10)
+            }
         }
+        .animation(SkyletTheme.standardAnimation, value: showCurrencyPicker)
     }
 
     // MARK: - Full (Solo) Body

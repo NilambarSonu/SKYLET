@@ -3,8 +3,8 @@
     {
       "value" : {
         "linear-gradient" : [
-          "display-p3:0.56863,0.76863,1.00000,1.00000",
-          "srgb:0.14510,0.50196,1.00000,1.00000"
+          "display-p3:0.04706,0.08235,0.16078,1.00000",
+          "srgb:0.02353,0.03922,0.07843,1.00000"
         ]
       }
     },
@@ -12,8 +12,8 @@
       "appearance" : "dark",
       "value" : {
         "linear-gradient" : [
-          "display-p3:0.20870,0.20870,0.20870,1.00000",
-          "display-p3:0.08561,0.08561,0.08561,1.00000"
+          "display-p3:0.03922,0.06275,0.12549,1.00000",
+          "display-p3:0.01569,0.02745,0.05490,1.00000"
         ]
       }
     }
@@ -24,15 +24,15 @@
         {
           "hidden" : false,
           "image-name" : "mark.png",
-          "name" : "placeholder",
+          "name" : "skylet-mark",
           "position" : {
-            "scale" : 0.8,
+            "scale" : 0.85,
             "translation-in-points" : [ 0, 0 ]
           }
         }
       ],
-      "shadow" : { "kind" : "neutral", "opacity" : 0.5 },
-      "translucency" : { "enabled" : true, "value" : 0.5 }
+      "shadow" : { "kind" : "neutral", "opacity" : 0.55 },
+      "translucency" : { "enabled" : true, "value" : 0.35 }
     }
   ],
   "supported-platforms" : {

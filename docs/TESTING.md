@@ -4,7 +4,7 @@ Skylet includes a comprehensive automated test suite verifying parsing correctne
 
 ## Test Coverage Summary
 
-The test suite contains **109 automated tests** across four main domains:
+The test suite contains **133 automated tests** across four main domains:
 
 ### 1. Currency Parser Tests (29 tests)
 - **Input Hygiene**: Empty string, whitespace-only, arbitrary alphabetic text without numbers.
@@ -76,14 +76,26 @@ The test suite contains **109 automated tests** across four main domains:
 - **Cache Isolation**:
   - In-memory test cache guarantees no test mock data ever touches user's production cache.
 
-### 4. Focus Timer & Power Assertions (28 tests)
-- **Presets**: 15m (900s), 30m (1800s), 45m (2700s), 60m (3600s), 120m (7200s).
-- **Countdown Formatting**: `60s` ➔ `01:00`, `899s` ➔ `14:59`, `3600s` ➔ `1:00:00`.
-- **Monotonic Deadline Timing**: Verified that timer updates calculate remaining duration against absolute deadlines, preventing drift during UI redraws or background scheduling delays.
-- **Duplicate Start Prevention**: Repeated `start()` calls while running do not duplicate power assertions.
-- **Pause & Resume**: Assertions released on pause, safely re-acquired on resume.
-- **Natural Completion**: Power assertions automatically released when countdown hits zero.
-- **Deactivation Cleanup**: Droplet deactivation guarantees immediate release of any active power assertions.
+### 4. Focus Timer 16 Lifecycle Requirements & UI State Tests (52 tests)
+- **Duration Presets & Countdown Formatting**: 15m, 30m, 45m, 60m, 120m, and string formatting (`MM:SS` / `H:MM:SS`).
+- **UI State Transitions & Button Presentation**: Dynamic action button titles and icons verified across all states (`Start Focus` ➔ `Pause` ➔ `Resume` ➔ `Start Again`) and status badges (`READY`, `FOCUSING`, `PAUSED`, `COMPLETED`).
+- **All 16 Focus Timer Lifecycle Requirements**:
+  1. `Idle -> Running`: Transitions to `.running` upon start with exact duration.
+  2. `Running -> Paused`: Transitions to `.paused` with remaining seconds preserved.
+  3. `Paused -> Running`: Transitions back to `.running` and restores internal ticker.
+  4. `Running -> Reset`: Resets immediately to `.idle` from running state.
+  5. `Paused -> Reset`: Resets immediately to `.idle` from paused state.
+  6. `Session Completion`: Reaches `.completed` status naturally when monotonic deadline expires.
+  7. `Completion Notification Exactly Once`: Both `onCompletion` callback and `sessionCompletedNotification` fired exactly 1 time per completed session.
+  8. `Display-Awake Activation`: Acquires `ProcessInfo` assertion on start.
+  9. `Display-Awake Release on Completion`: Power assertion released automatically when countdown hits zero.
+  10. `Display-Awake Release on Reset`: Power assertion released immediately on user reset.
+  11. `Display-Awake Release on Droplet Deactivation`: Teardown guarantees release of active power assertion.
+  12. `No Duplicate Ticking Tasks`: Calling `start()` while running does not spawn extra tickers or duplicate assertions.
+  13. `Duration Changes Behave Correctly`: Starting with different presets updates totalDuration and remaining time cleanly.
+  14. `Progress Preservation Across Pause/Resume`: Remaining seconds and elapsed progress are preserved across pause and resume.
+  15. `Visual Progress Reaching Zero Remaining Time`: Remaining time reaches exactly 0s upon completion.
+  16. `Monotonic Accuracy Under Delayed Schedule`: Absolute deadline eliminates clock drift even after 450s schedule freeze or system sleep.
 
 ## Running Tests Locally
 
@@ -96,7 +108,7 @@ swift run SkyletTestsRunner
 Expected output:
 ```text
 ==================================================
-TEST RESULTS: 109 passed, 0 failed
+TEST RESULTS: 133 passed, 0 failed
 ==================================================
 ALL TESTS PASSED SUCCESSFULLY!
 ```

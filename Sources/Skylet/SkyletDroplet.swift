@@ -39,6 +39,13 @@ public final class SkyletDroplet: NSObject, ObservableObject, Droplet {
             cache: CurrencyRateCache.shared
         )
         super.init()
+
+        // Forward Focus Timer engine changes to droplet so views observing droplet re-render immediately
+        timerEngine.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Lifecycle
@@ -147,19 +154,15 @@ extension SkyletDroplet: LiveActivityProviding {
         AnyView(
             HStack(spacing: 3) {
                 switch timerEngine.status {
-                case .running, .paused:
-                    Image(systemName: timerEngine.isDisplayAwake ? "sun.max.fill" : "timer")
-                        .font(.system(size: DroppyLiveActivityMetrics.iconSize, weight: .semibold))
-                        .foregroundStyle(SkyletTheme.skyBlue)
-                case .idle, .completed:
+                case .running, .paused, .completed:
+                    SolarSunView(status: timerEngine.status, diameter: DroppyLiveActivityMetrics.iconSize, showAura: false)
+                case .idle:
                     if latestConversion != nil {
                         Image(systemName: "indianrupeesign.circle.fill")
                             .font(.system(size: DroppyLiveActivityMetrics.iconSize, weight: .semibold))
                             .foregroundStyle(SkyletTheme.skyBlue)
                     } else {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: DroppyLiveActivityMetrics.iconSize, weight: .semibold))
-                            .foregroundStyle(SkyletTheme.skyBlue)
+                        SolarSunView(status: .idle, diameter: DroppyLiveActivityMetrics.iconSize, showAura: false)
                     }
                 @unknown default:
                     EmptyView()

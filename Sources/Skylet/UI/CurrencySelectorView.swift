@@ -135,14 +135,14 @@ public struct CurrencySelectorView: View {
                     }
                 }
             }
-            .frame(maxHeight: 180)
+            .frame(maxHeight: 76)
         }
-        .padding(DroppySpacing.md)
+        .padding(DroppySpacing.xs)
         .background(SkyletTheme.midnightSurface)
-        .clipShape(RoundedRectangle(cornerRadius: DroppyRadius.medium, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SkyletTheme.shelfCornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: DroppyRadius.medium, style: .continuous)
-                .stroke(SkyletTheme.cardFill, lineWidth: 1)
+            RoundedRectangle(cornerRadius: SkyletTheme.shelfCornerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
         )
         .onAppear {
             isSearchFocused = true

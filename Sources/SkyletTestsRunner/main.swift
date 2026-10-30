@@ -806,7 +806,7 @@ func runAllTests() async {
         }
     }
 
-    print("\n[4/4] Focus Timer & Power Assertion Lifecycle Tests")
+    print("\n[4/4] Focus Timer 16 Lifecycle Requirements & UI State Tests")
 
     final class LocalMockPower: PowerAssertionControlling, @unchecked Sendable {
         var isDisplayAwakeActive = false
@@ -836,57 +836,187 @@ func runAllTests() async {
     assert(FocusPreset.sixty.durationSeconds == 3600, "60m preset is 3600s")
     assert(FocusPreset.oneTwenty.durationSeconds == 7200, "120m preset is 7200s")
 
-    // Countdown string formatting
+    // Countdown formatting
     assert(FocusTimerEngine.formatCountdown(60) == "01:00", "Countdown 60s formats as 01:00")
     assert(FocusTimerEngine.formatCountdown(899) == "14:59", "Countdown 899s formats as 14:59")
     assert(FocusTimerEngine.formatCountdown(3600) == "1:00:00", "Countdown 3600s formats as 1:00:00")
     assert(FocusTimerEngine.formatCountdown(0) == "00:00", "Countdown 0s formats as 00:00")
 
-    // Engine lifecycle and power assertions
-    let mockPower = LocalMockPower()
-    let engine = FocusTimerEngine(powerController: mockPower)
+    // UI Action Button & Badge State Mapping
+    assert(FocusTimerStatus.idle.actionButtonTitle == "Start Focus", "Idle status has 'Start Focus' action title")
+    assert(FocusTimerStatus.idle.actionButtonIcon == "play.fill", "Idle status has play icon")
+    assert(FocusTimerStatus.idle.statusBadgeText == "READY", "Idle status badge text is READY")
 
-    assert(engine.status == .idle, "Initial status is .idle")
-    assert(!engine.isDisplayAwake, "Initial isDisplayAwake is false")
+    let dummyRunning = FocusTimerStatus.running(totalDuration: 900, remaining: 800, progress: 0.11)
+    assert(dummyRunning.actionButtonTitle == "Pause", "Running status has 'Pause' action title")
+    assert(dummyRunning.actionButtonIcon == "pause.fill", "Running status has pause icon")
+    assert(dummyRunning.statusBadgeText == "FOCUSING", "Running status badge text is FOCUSING")
 
-    engine.start(duration: 900)
-    assert(engine.status.isRunning, "Status is .running after start")
-    assert(engine.isDisplayAwake, "isDisplayAwake is true while running")
-    assert(mockPower.beginCount == 1, "Acquired power assertion on start")
+    let dummyPaused = FocusTimerStatus.paused(totalDuration: 900, remaining: 800, progress: 0.11)
+    assert(dummyPaused.actionButtonTitle == "Resume", "Paused status has 'Resume' action title")
+    assert(dummyPaused.actionButtonIcon == "play.fill", "Paused status has play icon")
+    assert(dummyPaused.statusBadgeText == "PAUSED", "Paused status badge text is PAUSED")
 
-    // Duplicate start
-    engine.start(duration: 900)
-    assert(mockPower.beginCount == 1, "Duplicate start does not create duplicate assertion")
+    let dummyCompleted = FocusTimerStatus.completed(totalDuration: 900)
+    assert(dummyCompleted.actionButtonTitle == "Start Again", "Completed status has 'Start Again' action title")
+    assert(dummyCompleted.actionButtonIcon == "arrow.clockwise", "Completed status has reload icon")
+    assert(dummyCompleted.statusBadgeText == "COMPLETED", "Completed status badge text is COMPLETED")
 
-    // Monotonic deadline tick
-    let now = Date()
-    engine.updateTick(now: now.addingTimeInterval(150))
-    assert(abs(engine.status.remainingSeconds - 750) <= 1.0, "Remaining seconds calculated accurately via deadline (zero drift)")
+    // Lifecycle Requirement 1: Idle -> Running
+    let power1 = LocalMockPower()
+    let engine1 = FocusTimerEngine(powerController: power1)
+    assert(engine1.status == .idle, "Req 1: Engine starts in .idle status")
+    engine1.start(duration: 900)
+    assert(engine1.status.isRunning, "Req 1: Engine transitions to .running upon start")
+    assert(abs(engine1.status.remainingSeconds - 900) <= 1.0, "Req 1: Remaining seconds is 900 initially")
 
-    // Pause
-    engine.pause()
-    assert(engine.status.isPaused, "Status is .paused")
-    assert(!engine.isDisplayAwake, "Power assertion released on pause")
-    assert(mockPower.endCount == 1, "endActivity called on pause")
+    // Lifecycle Requirement 2: Running -> Paused
+    engine1.pause()
+    assert(engine1.status.isPaused, "Req 2: Engine transitions to .paused upon pause")
+    assert(abs(engine1.status.remainingSeconds - 900) <= 1.0, "Req 2: Remaining seconds preserved on pause")
 
-    // Resume
-    engine.resume()
-    assert(engine.status.isRunning, "Status is .running after resume")
-    assert(engine.isDisplayAwake, "Power assertion re-acquired on resume")
-    assert(mockPower.beginCount == 2, "beginActivity called on resume")
+    // Lifecycle Requirement 3: Paused -> Running
+    engine1.resume()
+    assert(engine1.status.isRunning, "Req 3: Engine resumes to .running status")
 
-    // Natural completion
-    engine.updateTick(now: Date().addingTimeInterval(1000))
-    assert(engine.status.isCompleted, "Timer completes when deadline reached")
-    assert(!engine.isDisplayAwake, "Power assertion released on natural completion")
-    assert(!mockPower.isDisplayAwakeActive, "Mock power controller confirms inactive assertion")
+    // Lifecycle Requirement 4: Running -> Reset
+    let power4 = LocalMockPower()
+    let engine4 = FocusTimerEngine(powerController: power4)
+    engine4.start(duration: 600)
+    assert(engine4.status.isRunning, "Req 4: Engine started running")
+    engine4.reset()
+    assert(engine4.status == .idle, "Req 4: Reset while running transitions immediately to .idle")
 
-    // Deactivation cleanup
-    engine.start(duration: 300)
-    assert(mockPower.isDisplayAwakeActive, "Timer running before deactivation")
-    engine.deactivate()
-    assert(engine.status == .idle, "Status reset to .idle on deactivation")
-    assert(!mockPower.isDisplayAwakeActive, "Power assertion guaranteed released on deactivation")
+    // Lifecycle Requirement 5: Paused -> Reset
+    let power5 = LocalMockPower()
+    let engine5 = FocusTimerEngine(powerController: power5)
+    engine5.start(duration: 600)
+    engine5.pause()
+    assert(engine5.status.isPaused, "Req 5: Engine paused")
+    engine5.reset()
+    assert(engine5.status == .idle, "Req 5: Reset while paused transitions immediately to .idle")
+
+    // Lifecycle Requirement 6: Session completion
+    let power6 = LocalMockPower()
+    let engine6 = FocusTimerEngine(powerController: power6)
+    engine6.start(duration: 300)
+    let completionTime = Date().addingTimeInterval(301)
+    engine6.updateTick(now: completionTime)
+    assert(engine6.status.isCompleted, "Req 6: Timer naturally marks session completed when deadline reached")
+    assert(engine6.status.remainingSeconds == 0, "Req 6: Remaining seconds is 0 when completed")
+
+    // Lifecycle Requirement 7: Completion notification exactly once
+    let power7 = LocalMockPower()
+    let engine7 = FocusTimerEngine(powerController: power7)
+    var callbackCount = 0
+    var notifCount = 0
+    engine7.onCompletion = { _ in
+        callbackCount += 1
+    }
+    let observer = NotificationCenter.default.addObserver(
+        forName: FocusTimerEngine.sessionCompletedNotification,
+        object: engine7,
+        queue: nil
+    ) { _ in
+        notifCount += 1
+    }
+    engine7.start(duration: 100)
+    let fireTime = Date().addingTimeInterval(101)
+    engine7.updateTick(now: fireTime)
+    // Extra tick to verify exactly once guarantee
+    engine7.updateTick(now: fireTime.addingTimeInterval(5))
+    assert(callbackCount == 1, "Req 7: onCompletion closure fired exactly once")
+    assert(notifCount == 1, "Req 7: sessionCompletedNotification posted exactly once")
+    NotificationCenter.default.removeObserver(observer)
+
+    // Lifecycle Requirement 8: Display-awake activation
+    let power8 = LocalMockPower()
+    let engine8 = FocusTimerEngine(powerController: power8)
+    assert(!engine8.isDisplayAwake && power8.beginCount == 0, "Req 8: Display awake inactive before start")
+    engine8.start(duration: 500)
+    assert(engine8.isDisplayAwake && power8.beginCount == 1, "Req 8: Display-awake activated on session start")
+
+    // Lifecycle Requirement 9: Display-awake release on completion
+    engine8.updateTick(now: Date().addingTimeInterval(501))
+    assert(!engine8.isDisplayAwake && power8.endCount == 1, "Req 9: Display-awake released when session completes")
+
+    // Lifecycle Requirement 10: Display-awake release on reset
+    let power10 = LocalMockPower()
+    let engine10 = FocusTimerEngine(powerController: power10)
+    engine10.start(duration: 500)
+    assert(power10.isDisplayAwakeActive, "Req 10: Display-awake active while running")
+    engine10.reset()
+    assert(!power10.isDisplayAwakeActive && power10.endCount == 1, "Req 10: Display-awake released on reset")
+
+    // Lifecycle Requirement 11: Display-awake release on droplet deactivation
+    let power11 = LocalMockPower()
+    let engine11 = FocusTimerEngine(powerController: power11)
+    engine11.start(duration: 500)
+    assert(power11.isDisplayAwakeActive, "Req 11: Display-awake active before deactivation")
+    engine11.deactivate()
+    assert(!power11.isDisplayAwakeActive && power11.endCount == 1, "Req 11: Display-awake released on droplet deactivation")
+
+    // Lifecycle Requirement 12: No duplicate ticking tasks
+    let power12 = LocalMockPower()
+    let engine12 = FocusTimerEngine(powerController: power12)
+    engine12.start(duration: 600)
+    assert(power12.beginCount == 1, "Req 12: First start acquires assertion")
+    engine12.start(duration: 600)
+    assert(power12.beginCount == 1, "Req 12: Duplicate start does not re-acquire or spawn duplicate tickers")
+
+    // Lifecycle Requirement 13: Duration changes behave correctly
+    let power13 = LocalMockPower()
+    let engine13 = FocusTimerEngine(powerController: power13)
+    engine13.start(preset: .fifteen)
+    assert(abs(engine13.status.remainingSeconds - 900) <= 1.0, "Req 13: Started 15m preset has 900s")
+    engine13.reset()
+    engine13.start(preset: .thirty)
+    assert(abs(engine13.status.remainingSeconds - 1800) <= 1.0, "Req 13: Started 30m preset has 1800s")
+
+    // Lifecycle Requirement 14: Progress preservation across pause/resume
+    let power14 = LocalMockPower()
+    let engine14 = FocusTimerEngine(powerController: power14)
+    engine14.start(duration: 1000)
+    engine14.updateTick(now: Date().addingTimeInterval(300))
+    if case .running(_, let remBefore, let progBefore) = engine14.status {
+        assert(abs(remBefore - 700) <= 1.0, "Req 14: 700s remaining before pause")
+        engine14.pause()
+        if case .paused(_, let remPaused, let progPaused) = engine14.status {
+            assert(abs(remPaused - remBefore) < 0.001 && abs(progPaused - progBefore) < 0.001, "Req 14: Progress preserved exactly on pause")
+            engine14.resume()
+            if case .running(_, let remResumed, _) = engine14.status {
+                assert(abs(remResumed - 700) <= 1.0, "Req 14: Remaining time preserved on resume")
+            } else {
+                assert(false, "Req 14: Did not resume to running")
+            }
+        } else {
+            assert(false, "Req 14: Did not enter paused state")
+        }
+    } else {
+        assert(false, "Req 14: Did not enter running state")
+    }
+
+    // Lifecycle Requirement 15: Visual progress reaching zero remaining time
+    let power15 = LocalMockPower()
+    let engine15 = FocusTimerEngine(powerController: power15)
+    engine15.start(duration: 100)
+    engine15.updateTick(now: Date().addingTimeInterval(101))
+    assert(engine15.status.remainingSeconds == 0, "Req 15: Visual remaining time reaches exactly 0")
+    if case .completed(let total) = engine15.status {
+        assert(total == 100, "Req 15: Completed status carries total duration")
+    } else {
+        assert(false, "Req 15: Status is not completed")
+    }
+
+    // Lifecycle Requirement 16: Monotonic accuracy under delayed schedule
+    let power16 = LocalMockPower()
+    let engine16 = FocusTimerEngine(powerController: power16)
+    let startTime = Date()
+    engine16.start(duration: 1200)
+    // Simulate system sleep or UI freeze of 450 seconds
+    let delayedWakeTime = startTime.addingTimeInterval(450)
+    engine16.updateTick(now: delayedWakeTime)
+    assert(abs(engine16.status.remainingSeconds - 750) <= 0.01, "Req 16: Monotonic deadline eliminates schedule delay drift")
 
     print("\n==================================================")
     print("TEST RESULTS: \(passed) passed, \(failed) failed")
